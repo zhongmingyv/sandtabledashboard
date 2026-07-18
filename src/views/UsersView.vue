@@ -1,0 +1,140 @@
+<script setup>
+import { ref, reactive, onMounted } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { api } from '../api/admin'
+import { fmtBytes, fmtDate } from '../utils/format'
+import { PAGE_SIZE } from '../config'
+
+const loading = ref(false)
+const rows = ref([])
+const total = ref(0)
+const query = reactive({ q: '', sort: 'createdAt', order: 'desc', page: 1 })
+
+async function load() {
+  loading.value = true
+  try {
+    const res = await api.users({ ...query })
+    rows.value = res.items
+    total.value = res.total
+  } finally {
+    loading.value = false
+  }
+}
+
+function search() {
+  query.page = 1
+  load()
+}
+function onSort({ prop, order }) {
+  if (!order) return
+  query.sort = prop
+  query.order = order === 'ascending' ? 'asc' : 'desc'
+  load()
+}
+
+async function toggleBan(row) {
+  const banning = !row.isBanned
+  try {
+    await ElMessageBox.confirm(
+      banning
+        ? `封禁「${row.displayName}」？将无法登录、无法下载，其上传的所有战役/资源也不可被他人下载。已登录会话会被踢下线。`
+        : `解封「${row.displayName}」？`,
+      banning ? '封禁用户' : '解封用户',
+      { type: banning ? 'warning' : 'info' },
+    )
+  } catch {
+    return
+  }
+  banning ? await api.banUser(row.playerId) : await api.unbanUser(row.playerId)
+  row.isBanned = banning
+  ElMessage.success(banning ? '已封禁' : '已解封')
+}
+
+async function editGold(row) {
+  try {
+    const { value } = await ElMessageBox.prompt('设为新的金币数（绝对值）', `修改「${row.displayName}」金币`, {
+      inputValue: String(row.gold),
+      inputPattern: /^\d+$/,
+      inputErrorMessage: '请输入非负整数',
+    })
+    const res = await api.setGold(row.playerId, Number(value))
+    row.gold = res.gold
+    ElMessage.success('已更新金币')
+  } catch {
+    /* 取消 */
+  }
+}
+
+async function editTier(row) {
+  try {
+    const { value } = await ElMessageBox.prompt('设置图床配额档位（整数，0=默认档）', `修改「${row.displayName}」档位`, {
+      inputValue: String(row.quotaTier),
+      inputPattern: /^\d+$/,
+      inputErrorMessage: '请输入非负整数',
+    })
+    const res = await api.setQuotaTier(row.playerId, Number(value))
+    row.quotaTier = res.quotaTier
+    ElMessage.success('已更新档位')
+  } catch {
+    /* 取消 */
+  }
+}
+onMounted(load)
+</script>
+
+<template>
+  <div>
+    <div class="page-toolbar">
+      <el-input
+        v-model="query.q"
+        placeholder="按昵称 / 邮箱搜索"
+        clearable
+        style="width: 260px"
+        @keyup.enter="search"
+        @clear="search"
+      />
+      <el-button type="primary" @click="search">搜索</el-button>
+      <div class="spacer" />
+      <span style="color: #909399">共 {{ total }} 人</span>
+    </div>
+
+    <el-table :data="rows" v-loading="loading" @sort-change="onSort" border>
+      <el-table-column prop="displayName" label="昵称" min-width="120">
+        <template #default="{ row }">
+          {{ row.displayName }}
+          <el-tag v-if="row.isBanned" type="danger" size="small">已封禁</el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column prop="email" label="邮箱" min-width="180" />
+      <el-table-column prop="gold" label="金币" width="110" sortable="custom" />
+      <el-table-column prop="quotaTier" label="档位" width="80" />
+      <el-table-column prop="blobStorageBytes" label="图床占用" width="120" sortable="custom">
+        <template #default="{ row }">{{ fmtBytes(row.blobStorageBytes) }}</template>
+      </el-table-column>
+      <el-table-column prop="campaignCount" label="战役" width="80" sortable="custom" />
+      <el-table-column prop="resourceCount" label="资源" width="80" sortable="custom" />
+      <el-table-column prop="createdAt" label="注册时间" width="150" sortable="custom">
+        <template #default="{ row }">{{ fmtDate(row.createdAt) }}</template>
+      </el-table-column>
+      <el-table-column label="操作" width="240" fixed="right">
+        <template #default="{ row }">
+          <el-button link type="primary" @click="editGold(row)">改金币</el-button>
+          <el-button link type="primary" @click="editTier(row)">改档位</el-button>
+          <el-button link :type="row.isBanned ? 'success' : 'danger'" @click="toggleBan(row)">
+            {{ row.isBanned ? '解封' : '封禁' }}
+          </el-button>
+        </template>
+      </el-table-column>
+    </el-table>
+
+    <div class="pager">
+      <el-pagination
+        layout="prev, pager, next"
+        :total="total"
+        :page-size="PAGE_SIZE"
+        :current-page="query.page"
+        @current-change="(p) => { query.page = p; load() }"
+      />
+    </div>
+  </div>
+</template>
