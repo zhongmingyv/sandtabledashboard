@@ -18,7 +18,9 @@ const users = Array.from({ length: 42 }, (_, i) => ({
   displayName: names[i % names.length] + (i >= names.length ? i : ''),
   createdAt: iso((42 - i) * 86400000 + rand(i) * 1e7),
   gold: Math.floor(rand(i + 1) * 5000),
-  quotaTier: i % 5 === 0 ? 1 : 0,
+  blobQuotaBytes: i % 5 === 0 ? 128 * 1024 * 1024 : 0,
+  campaignQuota: i % 4 === 0 ? 5 : 0,
+  resourceQuota: i % 6 === 0 ? 20 : 0,
   isBanned: i % 11 === 3,
   campaignCount: Math.floor(rand(i + 2) * 4),
   resourceCount: Math.floor(rand(i + 3) * 10),
@@ -60,6 +62,38 @@ const resources = Array.from({ length: 50 }, (_, i) => {
     isDeleted: i % 8 === 2,
     isBanned: i % 15 === 6,
     sizeBytes: Math.floor((0.2 + rand(i + 9) * 20) * 1024 * 1024),
+  }
+})
+
+// 图床 blob store（内容寻址）：混合图片/音频，供 图床管理 页跑通
+function fakeSha(seed) {
+  const hex = '0123456789abcdef'
+  let s = ''
+  for (let i = 0; i < 64; i++) s += hex[Math.floor(rand(seed * 97 + i) * 16)]
+  return s
+}
+const imageMedia = ['image/png', 'image/jpeg', 'image/webp']
+const audioMedia = ['audio/ogg', 'audio/mpeg', 'audio/wav']
+const blobLayerSets = [
+  '["terrain"]', '["terrain","road"]', '["object"]', '["ui"]', '[]',
+  '["background"]', '["height"]', '["edge"]', '["road","object"]',
+]
+const blobs = Array.from({ length: 12 }, (_, i) => {
+  const isAudio = i % 3 === 2
+  const owner = users[(i + 5) % users.length]
+  return {
+    sha256: fakeSha(i + 1),
+    size: isAudio
+      ? Math.floor((30 + rand(i + 1) * 900) * 1024)
+      : Math.floor((20 + rand(i + 2) * 3000) * 1024),
+    width: isAudio ? 0 : [256, 512, 1024, 2048][i % 4],
+    height: isAudio ? 0 : [256, 512, 1024, 1024][i % 4],
+    mediaType: isAudio ? audioMedia[i % audioMedia.length] : imageMedia[i % imageMedia.length],
+    createdAt: iso((12 - i) * 43200000 + rand(i) * 1e6),
+    refCount: Math.floor(rand(i + 3) * 6),
+    layersJson: isAudio ? '[]' : blobLayerSets[i % blobLayerSets.length],
+    ownerName: owner.displayName,
+    isBanned: i === 4 || i === 9,
   }
 })
 
@@ -161,7 +195,10 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
   if (m === 'GET' && p === 'admin/users') {
     let rows = users.filter((u) => contains(u.displayName, params.q) || contains(u.email, params.q))
     rows = applySort(rows, params.sort || 'createdAt', params.order)
-    return ok(paginate(rows, Number(params.page) || 1))
+    return ok({
+      ...paginate(rows, Number(params.page) || 1),
+      defaults: { campaignQuota: 3, resourceQuota: 10, blobTotalBytes: 64 * 1024 * 1024 },
+    })
   }
   let mu = p.match(/^admin\/users\/([^/]+)\/(ban|unban)$/)
   if (m === 'POST' && mu) {
@@ -184,12 +221,26 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
     u.gold = Math.max(0, u.gold + (Number(data.delta) || 0))
     return ok({ gold: u.gold })
   }
-  mu = p.match(/^admin\/users\/([^/]+)\/quota-tier$/)
+  mu = p.match(/^admin\/users\/([^/]+)\/blob-quota$/)
   if (m === 'PUT' && mu) {
     const u = users.find((x) => x.playerId === mu[1])
     if (!u) return fail(404, 'user_not_found')
-    u.quotaTier = Number(data.tier) || 0
-    return ok({ quotaTier: u.quotaTier })
+    u.blobQuotaBytes = Math.max(0, Number(data.bytes) || 0)
+    return ok({ blobQuotaBytes: u.blobQuotaBytes })
+  }
+  mu = p.match(/^admin\/users\/([^/]+)\/campaign-quota$/)
+  if (m === 'PUT' && mu) {
+    const u = users.find((x) => x.playerId === mu[1])
+    if (!u) return fail(404, 'user_not_found')
+    u.campaignQuota = Math.max(0, Number(data.count) || 0)
+    return ok({ campaignQuota: u.campaignQuota })
+  }
+  mu = p.match(/^admin\/users\/([^/]+)\/resource-quota$/)
+  if (m === 'PUT' && mu) {
+    const u = users.find((x) => x.playerId === mu[1])
+    if (!u) return fail(404, 'user_not_found')
+    u.resourceQuota = Math.max(0, Number(data.count) || 0)
+    return ok({ resourceQuota: u.resourceQuota })
   }
 
   // 战役
@@ -222,35 +273,44 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
     return ok({ ok: true, isBanned: c.isBanned })
   }
 
-  // 资源
-  if (m === 'GET' && p === 'admin/resources') {
-    let rows = resources.filter(
-      (r) =>
-        contains(r.title, params.q) &&
-        (!params.owner || r.ownerPlayerId === params.owner) &&
-        (!params.layerType || r.layerType === params.layerType) &&
-        statusMatch(r, params.status),
-    )
+  // 图床（内容寻址 blob store）
+  if (m === 'GET' && p === 'admin/blobs') {
+    const kindOf = (b) => (String(b.mediaType).startsWith('audio/') ? 'audio' : 'image')
+    let rows = blobs.filter((b) => {
+      if (params.kind && params.kind !== 'all' && kindOf(b) !== params.kind) return false
+      if (params.layer) {
+        let ls = []
+        try { ls = JSON.parse(b.layersJson || '[]') } catch { ls = [] }
+        if (!ls.includes(params.layer)) return false
+      }
+      if (params.status === 'active' && b.isBanned) return false
+      if (params.status === 'banned' && !b.isBanned) return false
+      if (params.owner && b.ownerName !== params.owner) return false
+      if (params.q && !String(b.sha256).toLowerCase().startsWith(String(params.q).toLowerCase())) return false
+      return true
+    })
     rows = applySort(rows, params.sort || 'createdAt', params.order)
     return ok(paginate(rows, Number(params.page) || 1))
   }
-  let mr = p.match(/^admin\/resources\/([^/]+)$/)
-  if (m === 'GET' && mr) {
-    const r = resources.find((x) => x.id === mr[1])
-    return r ? ok(r) : fail(404, 'resource_not_found')
-  }
-  if (m === 'DELETE' && mr) {
-    const i = resources.findIndex((x) => x.id === mr[1])
-    if (i < 0) return fail(404, 'resource_not_found')
-    resources.splice(i, 1)
-    return ok({ ok: true })
-  }
-  mr = p.match(/^admin\/resources\/([^/]+)\/(ban|unban)$/)
+  let mr = p.match(/^admin\/blobs\/([^/]+)\/(ban|unban)$/)
   if (m === 'POST' && mr) {
-    const r = resources.find((x) => x.id === mr[1])
-    if (!r) return fail(404, 'resource_not_found')
-    r.isBanned = mr[2] === 'ban'
-    return ok({ ok: true, isBanned: r.isBanned })
+    const b = blobs.find((x) => x.sha256 === mr[1])
+    if (!b) return fail(404, 'blob_not_found')
+    b.isBanned = mr[2] === 'ban'
+    return ok({ ok: true, isBanned: b.isBanned })
+  }
+  mr = p.match(/^admin\/blobs\/([^/]+)\/(thumb|raw)$/)
+  if (m === 'GET' && mr) {
+    // mock 无真实字节，返回空占位；视图侧走 error/placeholder 兜底
+    return ok(new Blob([], { type: 'application/octet-stream' }))
+  }
+  mr = p.match(/^admin\/blobs\/([^/]+)$/)
+  if (m === 'DELETE' && mr) {
+    const i = blobs.findIndex((x) => x.sha256 === mr[1])
+    if (i < 0) return fail(404, 'blob_not_found')
+    const freedBytes = blobs[i].size
+    blobs.splice(i, 1)
+    return ok({ ok: true, freedBytes })
   }
 
   // 复盘

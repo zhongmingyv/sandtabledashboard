@@ -16,7 +16,9 @@ export const api = {
   unbanUser: (id) => http.post(`/admin/users/${id}/unban`),
   setGold: (id, gold) => http.put(`/admin/users/${id}/gold`, { gold }),
   adjustGold: (id, delta) => http.post(`/admin/users/${id}/gold/adjust`, { delta }),
-  setQuotaTier: (id, tier) => http.put(`/admin/users/${id}/quota-tier`, { tier }),
+  setBlobQuota: (id, bytes) => http.put(`/admin/users/${id}/blob-quota`, { bytes }),
+  setCampaignQuota: (id, count) => http.put(`/admin/users/${id}/campaign-quota`, { count }),
+  setResourceQuota: (id, count) => http.put(`/admin/users/${id}/resource-quota`, { count }),
 
   // 战役
   campaigns: (params) => http.get('/admin/campaigns', params),
@@ -25,12 +27,13 @@ export const api = {
   unbanCampaign: (id) => http.post(`/admin/campaigns/${id}/unban`),
   deleteCampaign: (id) => http.del(`/admin/campaigns/${id}`),
 
-  // 资源
-  resources: (params) => http.get('/admin/resources', params),
-  resource: (id) => http.get(`/admin/resources/${id}`),
-  banResource: (id) => http.post(`/admin/resources/${id}/ban`),
-  unbanResource: (id) => http.post(`/admin/resources/${id}/unban`),
-  deleteResource: (id) => http.del(`/admin/resources/${id}`),
+  // 图床（内容寻址 blob store）
+  listBlobs: (params) => http.get('/admin/blobs', params),
+  banBlob: (sha) => http.post(`/admin/blobs/${sha}/ban`),
+  unbanBlob: (sha) => http.post(`/admin/blobs/${sha}/unban`),
+  deleteBlob: (sha) => http.del(`/admin/blobs/${sha}`),
+  blobThumb: (sha) => http.getBlob(`/admin/blobs/${sha}/thumb`),
+  blobRaw: (sha) => http.getBlob(`/admin/blobs/${sha}/raw`),
 
   // 复盘 / 操作流
   replays: (params) => http.get('/admin/replays', params),

@@ -47,9 +47,32 @@ export async function request(method, url, { params, data } = {}) {
   }
 }
 
+// 二进制拉取（缩略图/音频）：<img>/<audio> 标签无法带 Authorization，
+// 故走 axios 以 blob 形式取回，返回形状对齐 { data: Blob } 供 URL.createObjectURL 使用。
+// MOCK 下没有真实字节，返回一个占位空 blob，让视图走 error/placeholder 兜底。
+export async function requestBlob(url) {
+  if (USE_MOCK) {
+    if (!localStorage.getItem('slgm_admin_token')) {
+      handleUnauthorized()
+      throw { response: { status: 401, data: { error: 'unauthorized' } } }
+    }
+    // 占位：非图片/音频字节，视图侧 <img>/<audio> 会触发 error 事件走占位兜底
+    return { data: new Blob([], { type: 'application/octet-stream' }) }
+  }
+  try {
+    const resp = await instance.request({ method: 'GET', url, responseType: 'blob' })
+    return { data: resp.data }
+  } catch (err) {
+    const status = err?.response?.status
+    if (status === 401) handleUnauthorized()
+    throw err
+  }
+}
+
 export const http = {
   get: (url, params) => request('GET', url, { params }),
   post: (url, data, params) => request('POST', url, { data, params }),
   put: (url, data, params) => request('PUT', url, { data, params }),
   del: (url, params) => request('DELETE', url, { params }),
+  getBlob: (url) => requestBlob(url),
 }

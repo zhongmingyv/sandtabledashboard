@@ -25,7 +25,12 @@ async function submit() {
     router.push(route.query.redirect || { name: 'overview' })
   } catch (err) {
     const code = err?.response?.data?.error
-    ElMessage.error(code === 'invalid_credentials' ? '用户名或密码错误' : '登录失败')
+    if (code === 'too_many_attempts') {
+      const secs = err?.response?.data?.retryAfter || 900
+      ElMessage.error(`尝试过于频繁，请 ${Math.ceil(secs / 60)} 分钟后再试`)
+    } else {
+      ElMessage.error(code === 'invalid_credentials' ? '用户名或密码错误' : '登录失败')
+    }
   } finally {
     loading.value = false
   }

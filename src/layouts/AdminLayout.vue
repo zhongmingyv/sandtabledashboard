@@ -15,7 +15,7 @@ const menus = [
   { name: 'overview', title: '概览', icon: 'DataLine' },
   { name: 'users', title: '用户管理', icon: 'User' },
   { name: 'campaigns', title: '战役管理', icon: 'Files' },
-  { name: 'resources', title: '资源管理', icon: 'PictureFilled' },
+  { name: 'blobs', title: '图床管理', icon: 'Picture' },
   { name: 'replays', title: '复盘管理', icon: 'VideoPlay' },
   { name: 'settings', title: '全局配置', icon: 'Setting' },
   { name: 'audit', title: '操作审计', icon: 'Document' },
