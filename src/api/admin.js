@@ -48,4 +48,5 @@ export const api = {
 
   // 审计
   audit: (params) => http.get('/admin/audit', params),
+  loginLogs: (params) => http.get('/admin/login-logs', params),
 }

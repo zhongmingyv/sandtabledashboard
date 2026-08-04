@@ -19,6 +19,7 @@ const menus = [
   { name: 'replays', title: '复盘管理', icon: 'VideoPlay' },
   { name: 'settings', title: '全局配置', icon: 'Setting' },
   { name: 'audit', title: '操作审计', icon: 'Document' },
+  { name: 'login-logs', title: '登录日志', icon: 'List' },
 ]
 
 async function logout() {

@@ -14,6 +14,7 @@ const routes = [
       { path: 'replays', name: 'replays', component: () => import('../views/ReplaysView.vue'), meta: { title: '复盘管理' } },
       { path: 'settings', name: 'settings', component: () => import('../views/SettingsView.vue'), meta: { title: '全局配置' } },
       { path: 'audit', name: 'audit', component: () => import('../views/AuditView.vue'), meta: { title: '操作审计' } },
+      { path: 'login-logs', name: 'login-logs', component: () => import('../views/LoginLogsView.vue'), meta: { title: '登录日志' } },
       { path: 'change-password', name: 'change-password', component: () => import('../views/ChangePasswordView.vue'), meta: { title: '修改密码' } },
     ],
   },

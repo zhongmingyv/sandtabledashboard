@@ -365,6 +365,9 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
   if (m === 'GET' && p === 'admin/audit') {
     return ok(paginate(audit, Number(params.page) || 1))
   }
+  if (m === 'GET' && p === 'admin/login-logs') {
+    return ok(paginate(Array.from({ length: 12 }, (_, i) => ({ id: i + 1, email: 'demo@example.com', displayName: '演示用户', machineFingerprint: i % 3 === 0 ? '' : 'a'.repeat(64), ipAddress: '127.0.0.1', createdAt: iso(-i * 3600000) })), Number(params.page) || 1))
+  }
 
   return fail(404, 'mock_route_not_found: ' + m + ' ' + p)
 }
