@@ -16,6 +16,7 @@ onMounted(load)
     <el-table-column prop="email" label="账号" width="220" />
     <el-table-column prop="displayName" label="昵称" width="140" />
     <el-table-column prop="machineFingerprint" label="机器指纹" min-width="260"><template #default="{row}">{{ row.machineFingerprint || '未上报' }}</template></el-table-column>
+    <el-table-column prop="clientVersion" label="编辑器版本" width="120"><template #default="{row}">{{ row.clientVersion || '未上报' }}</template></el-table-column>
     <el-table-column prop="ipAddress" label="IP" width="160" />
   </el-table>
   <div class="pager"><el-pagination layout="prev, pager, next" :total="total" :page-size="PAGE_SIZE" :current-page="query.page" @current-change="p => { query.page=p; load() }" /></div>
