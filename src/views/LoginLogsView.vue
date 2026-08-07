@@ -1,7 +1,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { api } from '../api/admin'
-import { fmtDate } from '../utils/format'
+import { fmtDate, fmtMinutes } from '../utils/format'
 import { PAGE_SIZE } from '../config'
 const loading = ref(false), rows = ref([]), total = ref(0)
 const query = reactive({ page: 1, q: '' })
@@ -18,6 +18,8 @@ onMounted(load)
     <el-table-column prop="machineFingerprint" label="机器指纹" min-width="260"><template #default="{row}">{{ row.machineFingerprint || '未上报' }}</template></el-table-column>
     <el-table-column prop="clientVersion" label="编辑器版本" width="120"><template #default="{row}">{{ row.clientVersion || '未上报' }}</template></el-table-column>
     <el-table-column prop="ipAddress" label="IP" width="160" />
+    <!-- 这一行记的是**上一次**会话用了多久，不是本次；客户端自报，服务端已钳过界 -->
+    <el-table-column prop="lastSessionMinutes" label="上次时长" width="120"><template #default="{row}">{{ fmtMinutes(row.lastSessionMinutes) }}</template></el-table-column>
   </el-table>
   <div class="pager"><el-pagination layout="prev, pager, next" :total="total" :page-size="PAGE_SIZE" :current-page="query.page" @current-change="p => { query.page=p; load() }" /></div>
 </div></template>
