@@ -19,6 +19,7 @@ export const api = {
   setBlobQuota: (id, bytes) => http.put(`/admin/users/${id}/blob-quota`, { bytes }),
   setCampaignQuota: (id, count) => http.put(`/admin/users/${id}/campaign-quota`, { count }),
   setResourceQuota: (id, count) => http.put(`/admin/users/${id}/resource-quota`, { count }),
+  setReviewer: (id, isReviewer) => http.put(`/admin/users/${id}/reviewer`, { isReviewer }),
 
   // 战役
   campaigns: (params) => http.get('/admin/campaigns', params),

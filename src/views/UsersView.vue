@@ -125,6 +125,24 @@ async function editResourceQuota(row) {
     /* 取消 */
   }
 }
+async function toggleReviewer(row) {
+  const granting = !row.isReviewer
+  try {
+    await ElMessageBox.confirm(
+      granting
+        ? `把「${row.displayName}」设为官方试玩账号？该账号将能在 maker 商城搜到未过审战役、下载试玩，并审批上架。`
+        : `收回「${row.displayName}」的官方试玩账号权限？`,
+      granting ? '授予官方试玩账号' : '收回官方试玩账号',
+      { type: 'warning' },
+    )
+  } catch {
+    return
+  }
+  await api.setReviewer(row.playerId, granting)
+  row.isReviewer = granting
+  ElMessage.success(granting ? '已授予' : '已收回')
+}
+
 onMounted(load)
 </script>
 
@@ -149,6 +167,7 @@ onMounted(load)
         <template #default="{ row }">
           {{ row.displayName }}
           <el-tag v-if="row.isBanned" type="danger" size="small">已封禁</el-tag>
+          <el-tag v-if="row.isReviewer" type="warning" size="small">官方试玩</el-tag>
         </template>
       </el-table-column>
       <el-table-column prop="email" label="邮箱" min-width="180" />
@@ -177,12 +196,15 @@ onMounted(load)
       <el-table-column prop="createdAt" label="注册时间" width="150" sortable="custom">
         <template #default="{ row }">{{ fmtDate(row.createdAt) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="380" fixed="right">
+      <el-table-column label="操作" width="480" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="editGold(row)">改金币</el-button>
           <el-button link type="primary" @click="editCampaignQuota(row)">改战役上限</el-button>
           <el-button link type="primary" @click="editResourceQuota(row)">改资源上限</el-button>
           <el-button link type="primary" @click="editBlobQuota(row)">改图床上限</el-button>
+          <el-button link type="warning" @click="toggleReviewer(row)">
+            {{ row.isReviewer ? '取消试玩号' : '设为试玩号' }}
+          </el-button>
           <el-button link :type="row.isBanned ? 'success' : 'danger'" @click="toggleBan(row)">
             {{ row.isBanned ? '解封' : '封禁' }}
           </el-button>

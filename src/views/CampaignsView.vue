@@ -95,6 +95,15 @@ onMounted(load)
           {{ row.title }}
           <el-tag v-if="row.isBanned" type="danger" size="small">封禁</el-tag>
           <el-tag v-if="row.isDeleted" type="info" size="small">作者删</el-tag>
+          <el-tag v-if="row.approvalStatus === 'pending'" type="warning" size="small">待审核</el-tag>
+          <el-tag
+            v-else-if="row.approvalStatus === 'rejected'"
+            type="danger"
+            size="small"
+            :title="row.rejectReason"
+          >
+            已驳回
+          </el-tag>
         </template>
       </el-table-column>
       <el-table-column prop="ownerName" label="上传者" width="120" />

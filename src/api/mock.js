@@ -22,6 +22,7 @@ const users = Array.from({ length: 42 }, (_, i) => ({
   campaignQuota: i % 4 === 0 ? 5 : 0,
   resourceQuota: i % 6 === 0 ? 20 : 0,
   isBanned: i % 11 === 3,
+  isReviewer: i % 17 === 1,
   campaignCount: Math.floor(rand(i + 2) * 4),
   resourceCount: Math.floor(rand(i + 3) * 10),
   blobStorageBytes: Math.floor(rand(i + 4) * 64 * 1024 * 1024),
@@ -42,6 +43,8 @@ const campaigns = Array.from({ length: 30 }, (_, i) => {
     replayCount: Math.floor(rand(i + 6) * 8),
     isDeleted: i % 9 === 4,
     isBanned: i % 13 === 7,
+    approvalStatus: ['approved', 'pending', 'approved', 'rejected'][i % 4],
+    rejectReason: i % 4 === 3 ? '与史实出入过大' : '',
     sizeBytes: Math.floor((1 + rand(i + 7) * 24) * 1024 * 1024),
   }
 })
@@ -241,6 +244,13 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
     if (!u) return fail(404, 'user_not_found')
     u.resourceQuota = Math.max(0, Number(data.count) || 0)
     return ok({ resourceQuota: u.resourceQuota })
+  }
+  mu = p.match(/^admin\/users\/([^/]+)\/reviewer$/)
+  if (m === 'PUT' && mu) {
+    const u = users.find((x) => x.playerId === mu[1])
+    if (!u) return fail(404, 'user_not_found')
+    u.isReviewer = !!data.isReviewer
+    return ok({ isReviewer: u.isReviewer })
   }
 
   // 战役
