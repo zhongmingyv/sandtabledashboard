@@ -18,6 +18,7 @@ async function load() {
 }
 
 function preview(item) {
+  if (item.type === 'bool') return item.edit === '1' ? '开' : '关'
   if (item.type === 'bytes') return fmtBytes(Number(item.edit))
   return item.edit + (item.unit && item.unit !== '字节' ? ' ' + item.unit : '')
 }
@@ -29,6 +30,7 @@ async function saveAll() {
     return
   }
   for (const it of changed) {
+    if (it.type === 'bool') continue // 开关项由 el-switch 产出 '0'/'1'，不吃「必须为正整数」这条
     if (!/^\d+$/.test(String(it.edit)) || Number(it.edit) <= 0) {
       ElMessage.error(`「${it.label}」必须为正整数`)
       return
@@ -77,11 +79,22 @@ onMounted(load)
       <el-table :data="items" border>
         <el-table-column prop="label" label="项目" min-width="180" />
         <el-table-column label="当前值" width="140">
-          <template #default="{ row }">{{ row.type === 'bytes' ? fmtBytes(Number(row.value)) : row.value }}</template>
+          <template #default="{ row }">
+            <span v-if="row.type === 'bool'">{{ row.value === '1' ? '开' : '关' }}</span>
+            <span v-else>{{ row.type === 'bytes' ? fmtBytes(Number(row.value)) : row.value }}</span>
+          </template>
         </el-table-column>
         <el-table-column label="新值" width="200">
           <template #default="{ row }">
-            <el-input v-model="row.edit" size="small">
+            <el-switch
+              v-if="row.type === 'bool'"
+              v-model="row.edit"
+              active-value="1"
+              inactive-value="0"
+              active-text="自动"
+              inactive-text="人工"
+            />
+            <el-input v-else v-model="row.edit" size="small">
               <template v-if="row.unit" #append>{{ row.unit }}</template>
             </el-input>
           </template>
@@ -94,7 +107,10 @@ onMounted(load)
           </template>
         </el-table-column>
         <el-table-column label="默认" width="120">
-          <template #default="{ row }">{{ row.type === 'bytes' ? fmtBytes(Number(row.default)) : row.default }}</template>
+          <template #default="{ row }">
+            <span v-if="row.type === 'bool'">{{ row.default === '1' ? '开' : '关' }}</span>
+            <span v-else>{{ row.type === 'bytes' ? fmtBytes(Number(row.default)) : row.default }}</span>
+          </template>
         </el-table-column>
         <el-table-column prop="key" label="Key" min-width="200" />
       </el-table>

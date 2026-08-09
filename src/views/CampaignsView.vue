@@ -70,6 +70,20 @@ async function hardDelete(row) {
   ElMessage.success('已删除')
   load()
 }
+
+async function toggleFeatured(row) {
+  const on = !row.isFeatured
+  await api.setCampaignFeatured(row.id, on)
+  row.isFeatured = on
+  ElMessage.success(on ? '已设为精品' : '已取消精品')
+}
+
+async function togglePinned(row) {
+  const on = !row.isPinned
+  await api.setCampaignPinned(row.id, on)
+  row.isPinned = on
+  ElMessage.success(on ? '已置顶' : '已取消置顶')
+}
 onMounted(load)
 </script>
 
@@ -93,6 +107,8 @@ onMounted(load)
       <el-table-column prop="title" label="标题" min-width="160">
         <template #default="{ row }">
           {{ row.title }}
+          <el-tag v-if="row.isPinned" type="danger" size="small" effect="dark">置顶</el-tag>
+          <el-tag v-if="row.isFeatured" type="success" size="small" effect="dark">精品</el-tag>
           <el-tag v-if="row.isBanned" type="danger" size="small">封禁</el-tag>
           <el-tag v-if="row.isDeleted" type="info" size="small">作者删</el-tag>
           <el-tag v-if="row.approvalStatus === 'pending'" type="warning" size="small">待审核</el-tag>
@@ -117,8 +133,14 @@ onMounted(load)
       <el-table-column prop="createdAt" label="上传时间" width="150" sortable="custom">
         <template #default="{ row }">{{ fmtDate(row.createdAt) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="180" fixed="right">
+      <el-table-column label="操作" width="300" fixed="right">
         <template #default="{ row }">
+          <el-button link type="danger" @click="togglePinned(row)">
+            {{ row.isPinned ? '取消置顶' : '置顶' }}
+          </el-button>
+          <el-button link type="success" @click="toggleFeatured(row)">
+            {{ row.isFeatured ? '取消精品' : '精品' }}
+          </el-button>
           <el-button link :type="row.isBanned ? 'success' : 'warning'" @click="toggleBan(row)">
             {{ row.isBanned ? '解封' : '封禁' }}
           </el-button>

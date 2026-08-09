@@ -23,6 +23,7 @@ const users = Array.from({ length: 42 }, (_, i) => ({
   resourceQuota: i % 6 === 0 ? 20 : 0,
   isBanned: i % 11 === 3,
   isReviewer: i % 17 === 1,
+  isFeaturedMaker: i % 7 === 2,
   campaignCount: Math.floor(rand(i + 2) * 4),
   resourceCount: Math.floor(rand(i + 3) * 10),
   blobStorageBytes: Math.floor(rand(i + 4) * 64 * 1024 * 1024),
@@ -45,6 +46,8 @@ const campaigns = Array.from({ length: 30 }, (_, i) => {
     isBanned: i % 13 === 7,
     approvalStatus: ['approved', 'pending', 'approved', 'rejected'][i % 4],
     rejectReason: i % 4 === 3 ? '与史实出入过大' : '',
+    isFeatured: i % 6 === 1,
+    isPinned: i % 14 === 5,
     sizeBytes: Math.floor((1 + rand(i + 7) * 24) * 1024 * 1024),
   }
 })
@@ -124,6 +127,7 @@ const settings = [
   { key: 'blob.maxAudioBytes', label: '单个音频上限', value: String(1024 * 1024), default: String(1024 * 1024), unit: '字节', type: 'bytes' },
   { key: 'blob.quota.tier0.maxTotalBytes', label: '图床总量/人 Tier0', value: String(64 * 1024 * 1024), default: String(64 * 1024 * 1024), unit: '字节', type: 'bytes' },
   { key: 'blob.quota.tier1.maxTotalBytes', label: '图床总量/人 Tier1', value: String(512 * 1024 * 1024), default: String(512 * 1024 * 1024), unit: '字节', type: 'bytes' },
+  { key: 'campaign.autoApprove', label: '战役自动审批', value: '1', default: '1', unit: '', type: 'bool' },
 ]
 
 const audit = Array.from({ length: 35 }, (_, i) => ({
@@ -252,6 +256,13 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
     u.isReviewer = !!data.isReviewer
     return ok({ isReviewer: u.isReviewer })
   }
+  mu = p.match(/^admin\/users\/([^/]+)\/featured-maker$/)
+  if (m === 'PUT' && mu) {
+    const u = users.find((x) => x.playerId === mu[1])
+    if (!u) return fail(404, 'user_not_found')
+    u.isFeaturedMaker = !!data.isFeaturedMaker
+    return ok({ isFeaturedMaker: u.isFeaturedMaker })
+  }
 
   // 战役
   if (m === 'GET' && p === 'admin/campaigns') {
@@ -281,6 +292,20 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
     if (!c) return fail(404, 'campaign_not_found')
     c.isBanned = mc[2] === 'ban'
     return ok({ ok: true, isBanned: c.isBanned })
+  }
+  mc = p.match(/^admin\/campaigns\/([^/]+)\/featured$/)
+  if (m === 'PUT' && mc) {
+    const c = campaigns.find((x) => x.id === mc[1])
+    if (!c) return fail(404, 'campaign_not_found')
+    c.isFeatured = !!data.isFeatured
+    return ok({ isFeatured: c.isFeatured })
+  }
+  mc = p.match(/^admin\/campaigns\/([^/]+)\/pinned$/)
+  if (m === 'PUT' && mc) {
+    const c = campaigns.find((x) => x.id === mc[1])
+    if (!c) return fail(404, 'campaign_not_found')
+    c.isPinned = !!data.isPinned
+    return ok({ isPinned: c.isPinned })
   }
 
   // 图床（内容寻址 blob store）

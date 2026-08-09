@@ -20,6 +20,8 @@ export const api = {
   setCampaignQuota: (id, count) => http.put(`/admin/users/${id}/campaign-quota`, { count }),
   setResourceQuota: (id, count) => http.put(`/admin/users/${id}/resource-quota`, { count }),
   setReviewer: (id, isReviewer) => http.put(`/admin/users/${id}/reviewer`, { isReviewer }),
+  setFeaturedMaker: (id, isFeaturedMaker) =>
+    http.put(`/admin/users/${id}/featured-maker`, { isFeaturedMaker }),
 
   // 战役
   campaigns: (params) => http.get('/admin/campaigns', params),
@@ -27,6 +29,9 @@ export const api = {
   banCampaign: (id) => http.post(`/admin/campaigns/${id}/ban`),
   unbanCampaign: (id) => http.post(`/admin/campaigns/${id}/unban`),
   deleteCampaign: (id) => http.del(`/admin/campaigns/${id}`),
+  setCampaignFeatured: (id, isFeatured) =>
+    http.put(`/admin/campaigns/${id}/featured`, { isFeatured }),
+  setCampaignPinned: (id, isPinned) => http.put(`/admin/campaigns/${id}/pinned`, { isPinned }),
 
   // 图床（内容寻址 blob store）
   listBlobs: (params) => http.get('/admin/blobs', params),
