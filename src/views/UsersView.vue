@@ -52,21 +52,6 @@ async function toggleBan(row) {
   ElMessage.success(banning ? '已封禁' : '已解封')
 }
 
-async function editGold(row) {
-  try {
-    const { value } = await ElMessageBox.prompt('设为新的金币数（绝对值）', `修改「${row.displayName}」金币`, {
-      inputValue: String(row.gold),
-      inputPattern: /^\d+$/,
-      inputErrorMessage: '请输入非负整数',
-    })
-    const res = await api.setGold(row.playerId, Number(value))
-    row.gold = res.gold
-    ElMessage.success('已更新金币')
-  } catch {
-    /* 取消 */
-  }
-}
-
 const MB = 1024 * 1024
 
 async function editBlobQuota(row) {
@@ -190,7 +175,6 @@ onMounted(load)
         </template>
       </el-table-column>
       <el-table-column prop="email" label="邮箱" min-width="180" />
-      <el-table-column prop="gold" label="金币" width="110" sortable="custom" />
       <el-table-column prop="campaignCount" label="战役 占用/上限" width="130" sortable="custom">
         <template #default="{ row }">
           {{ row.campaignCount }} /
@@ -215,9 +199,8 @@ onMounted(load)
       <el-table-column prop="createdAt" label="注册时间" width="150" sortable="custom">
         <template #default="{ row }">{{ fmtDate(row.createdAt) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="580" fixed="right">
+      <el-table-column label="操作" width="500" fixed="right">
         <template #default="{ row }">
-          <el-button link type="primary" @click="editGold(row)">改金币</el-button>
           <el-button link type="primary" @click="editCampaignQuota(row)">改战役上限</el-button>
           <el-button link type="primary" @click="editResourceQuota(row)">改资源上限</el-button>
           <el-button link type="primary" @click="editBlobQuota(row)">改图床上限</el-button>

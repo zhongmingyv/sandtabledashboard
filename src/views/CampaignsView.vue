@@ -124,7 +124,6 @@ onMounted(load)
       </el-table-column>
       <el-table-column prop="ownerName" label="上传者" width="120" />
       <el-table-column prop="era" label="年代" width="90" />
-      <el-table-column prop="price" label="定价" width="90" sortable="custom" />
       <el-table-column prop="downloadCount" label="下载" width="90" sortable="custom" />
       <el-table-column prop="replayCount" label="复盘" width="80" />
       <el-table-column prop="sizeBytes" label="包大小" width="110">

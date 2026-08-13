@@ -17,7 +17,6 @@ const users = Array.from({ length: 42 }, (_, i) => ({
   email: `user${i + 1}@example.com`,
   displayName: names[i % names.length] + (i >= names.length ? i : ''),
   createdAt: iso((42 - i) * 86400000 + rand(i) * 1e7),
-  gold: Math.floor(rand(i + 1) * 5000),
   blobQuotaBytes: i % 5 === 0 ? 128 * 1024 * 1024 : 0,
   campaignQuota: i % 4 === 0 ? 5 : 0,
   resourceQuota: i % 6 === 0 ? 20 : 0,
@@ -39,7 +38,6 @@ const campaigns = Array.from({ length: 30 }, (_, i) => {
     title: `战役·${eras[i % eras.length] || '无题'}${i + 1}`,
     era: eras[i % eras.length],
     createdAt: iso((30 - i) * 86400000),
-    price: i % 3 === 0 ? 0 : Math.floor(rand(i) * 500),
     downloadCount: Math.floor(rand(i + 5) * 200),
     replayCount: Math.floor(rand(i + 6) * 8),
     isDeleted: i % 9 === 4,
@@ -63,7 +61,6 @@ const resources = Array.from({ length: 50 }, (_, i) => {
     layerType: layers[i % layers.length],
     tagsJson: JSON.stringify(['tag' + (i % 5)]),
     createdAt: iso((50 - i) * 43200000),
-    price: i % 4 === 0 ? 0 : Math.floor(rand(i) * 300),
     downloadCount: Math.floor(rand(i + 8) * 500),
     isDeleted: i % 8 === 2,
     isBanned: i % 15 === 6,
@@ -133,7 +130,7 @@ const settings = [
 const audit = Array.from({ length: 35 }, (_, i) => ({
   id: 1000 - i,
   actor: 'zhongmingyu',
-  action: ['user.ban', 'user.gold', 'content.ban', 'content.delete', 'setting.write'][i % 5],
+  action: ['user.ban', 'user.unban', 'content.ban', 'content.delete', 'setting.write'][i % 5],
   target: ['u0003', 'u0007', 'c0009', 'r0021', 'campaign.quota'][i % 5],
   detail: JSON.stringify({ before: i, after: i + 1 }),
   createdAt: iso(i * 1800000),
@@ -213,20 +210,6 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
     if (!u) return fail(404, 'user_not_found')
     u.isBanned = mu[2] === 'ban'
     return ok({ ok: true, isBanned: u.isBanned })
-  }
-  mu = p.match(/^admin\/users\/([^/]+)\/gold$/)
-  if (m === 'PUT' && mu) {
-    const u = users.find((x) => x.playerId === mu[1])
-    if (!u) return fail(404, 'user_not_found')
-    u.gold = Number(data.gold) || 0
-    return ok({ gold: u.gold })
-  }
-  mu = p.match(/^admin\/users\/([^/]+)\/gold\/adjust$/)
-  if (m === 'POST' && mu) {
-    const u = users.find((x) => x.playerId === mu[1])
-    if (!u) return fail(404, 'user_not_found')
-    u.gold = Math.max(0, u.gold + (Number(data.delta) || 0))
-    return ok({ gold: u.gold })
   }
   mu = p.match(/^admin\/users\/([^/]+)\/blob-quota$/)
   if (m === 'PUT' && mu) {

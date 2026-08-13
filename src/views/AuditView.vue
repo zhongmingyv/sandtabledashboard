@@ -11,7 +11,7 @@ const query = reactive({ page: 1 })
 
 const actionLabel = {
   'user.ban': '封禁用户',
-  'user.gold': '改金币',
+  'user.unban': '解封用户',
   'content.ban': '封禁内容',
   'content.delete': '删除内容',
   'setting.write': '改配置',
