@@ -9,12 +9,25 @@ const rows = ref([])
 const total = ref(0)
 const query = reactive({ page: 1 })
 
+// 认不出的动作原样显示，所以这张表不全也不会瞎；下面这些是服务端真会写进流水的。
+// campaign.ban 两个地方都会写：后台点封禁，或试玩账号驳回时勾了「硬拦」（Actor 带 reviewer: 前缀）。
 const actionLabel = {
   'user.ban': '封禁用户',
   'user.unban': '解封用户',
-  'content.ban': '封禁内容',
-  'content.delete': '删除内容',
+  'campaign.approved': '收录战役',
+  'campaign.rejected': '驳回战役（不曝光）',
+  'campaign.ban': '封禁战役',
+  'campaign.unban': '解封战役',
+  'campaign.delete': '硬删战役',
+  'resource.ban': '封禁资源',
+  'resource.unban': '解封资源',
+  'resource.delete': '硬删资源',
+  'blob.ban': '封禁图片',
+  'blob.unban': '解封图片',
+  'blob.delete': '删除图片',
+  'replay.delete': '删除复盘',
   'setting.write': '改配置',
+  'admin.password': '改后台密码',
 }
 
 async function load() {

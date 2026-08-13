@@ -115,7 +115,7 @@ async function toggleReviewer(row) {
   try {
     await ElMessageBox.confirm(
       granting
-        ? `把「${row.displayName}」设为官方试玩账号？该账号将能在 maker 商城搜到未过审战役、下载试玩，并审批上架。`
+        ? `把「${row.displayName}」设为官方试玩账号？该账号将能在 maker 商城搜到未收录战役、下载试玩，并决定收录与否；驳回时还能把违法内容一并打进封禁（这里才解得开）。`
         : `收回「${row.displayName}」的官方试玩账号权限？`,
       granting ? '授予官方试玩账号' : '收回官方试玩账号',
       { type: 'warning' },

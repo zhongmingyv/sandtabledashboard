@@ -118,7 +118,7 @@ onMounted(load)
             size="small"
             :title="row.rejectReason"
           >
-            已驳回
+            驳回·不曝光
           </el-tag>
         </template>
       </el-table-column>

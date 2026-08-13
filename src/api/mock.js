@@ -124,13 +124,13 @@ const settings = [
   { key: 'blob.maxAudioBytes', label: '单个音频上限', value: String(1024 * 1024), default: String(1024 * 1024), unit: '字节', type: 'bytes' },
   { key: 'blob.quota.tier0.maxTotalBytes', label: '图床总量/人 Tier0', value: String(64 * 1024 * 1024), default: String(64 * 1024 * 1024), unit: '字节', type: 'bytes' },
   { key: 'blob.quota.tier1.maxTotalBytes', label: '图床总量/人 Tier1', value: String(512 * 1024 * 1024), default: String(512 * 1024 * 1024), unit: '字节', type: 'bytes' },
-  { key: 'campaign.autoApprove', label: '战役自动审批', value: '1', default: '1', unit: '', type: 'bool' },
+  { key: 'campaign.autoApprove', label: '战役自动收录', value: '1', default: '1', unit: '', type: 'bool' },
 ]
 
 const audit = Array.from({ length: 35 }, (_, i) => ({
   id: 1000 - i,
-  actor: 'zhongmingyu',
-  action: ['user.ban', 'user.unban', 'content.ban', 'content.delete', 'setting.write'][i % 5],
+  actor: i % 5 === 2 ? 'reviewer:u0003' : 'zhongmingyu',
+  action: ['user.ban', 'user.unban', 'campaign.rejected', 'campaign.ban', 'setting.write'][i % 5],
   target: ['u0003', 'u0007', 'c0009', 'r0021', 'campaign.quota'][i % 5],
   detail: JSON.stringify({ before: i, after: i + 1 }),
   createdAt: iso(i * 1800000),
