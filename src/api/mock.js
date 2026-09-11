@@ -46,9 +46,16 @@ const campaigns = Array.from({ length: 30 }, (_, i) => {
     rejectReason: i % 4 === 3 ? '与史实出入过大' : '',
     isFeatured: i % 6 === 1,
     isPinned: i % 14 === 5,
-    sizeBytes: Math.floor((1 + rand(i + 7) * 24) * 1024 * 1024),
+    // 非空 = 工坊索引行（字节在 Steam，本服只留元数据），此时 sizeBytes 恒 0
+    workshopItemId: i % 3 === 1 ? String(3100000000 + i) : '',
+    sizeBytes: i % 3 === 1 ? 0 : Math.floor((1 + rand(i + 7) * 24) * 1024 * 1024),
   }
 })
+
+const workshopBans = [
+  { itemId: '3100000004', reason: '搬运他人作品', bannedBy: 'reviewer:u0003', bannedAt: iso(3 * 86400000) },
+  { itemId: '3100000019', reason: '含违规文本', bannedBy: 'zhongmingyu', bannedAt: iso(86400000) },
+]
 
 const layers = ['background', 'height', 'terrain', 'edge', 'road', 'object', 'ui']
 const resources = Array.from({ length: 50 }, (_, i) => {
@@ -289,6 +296,28 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
     if (!c) return fail(404, 'campaign_not_found')
     c.isPinned = !!data.isPinned
     return ok({ isPinned: c.isPinned })
+  }
+
+  // 创意工坊条目名单
+  if (m === 'GET' && p === 'workshop/bans') {
+    return ok({ total: workshopBans.length, items: [...workshopBans] })
+  }
+  if (m === 'POST' && p === 'admin/workshop/bans') {
+    const itemId = String(data.itemId || '').trim()
+    if (!/^\d{1,20}$/.test(itemId) || itemId === '0') return fail(400, 'invalid_item_id')
+    if (String(data.reason || '').length > 500) return fail(400, 'reason_too_long')
+    const added = !workshopBans.some((b) => b.itemId === itemId)
+    if (added) {
+      workshopBans.unshift({ itemId, reason: data.reason || '', bannedBy: 'zhongmingyu', bannedAt: iso(0) })
+    }
+    return ok({ itemId, banned: true, added })
+  }
+  let mw = p.match(/^workshop\/bans\/([^/]+)$/)
+  if (m === 'DELETE' && mw) {
+    const i = workshopBans.findIndex((b) => b.itemId === mw[1])
+    if (i < 0) return fail(404, 'ban_not_found')
+    workshopBans.splice(i, 1)
+    return ok({ itemId: mw[1], banned: false })
   }
 
   // 图床（内容寻址 blob store）

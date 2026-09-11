@@ -59,7 +59,9 @@ async function toggleBan(row) {
 async function hardDelete(row) {
   try {
     await ElMessageBox.confirm(
-      `硬删除「${row.title}」？将物理删除 zip（${fmtBytes(row.sizeBytes)}）并触发 blob 回收，不可恢复。`,
+      row.workshopItemId
+        ? `硬删除「${row.title}」？本服只有这条索引行，删掉后该条目的房间/复盘/收藏一并没了；Steam 上的条目本身不受影响（要拦内容请去「创意工坊」页把条目 id 加进名单）。不可恢复。`
+        : `硬删除「${row.title}」？将物理删除 zip（${fmtBytes(row.sizeBytes)}）并触发 blob 回收，不可恢复。`,
       '硬删除（不可逆）',
       { type: 'error', confirmButtonText: '确认删除', confirmButtonClass: 'el-button--danger' },
     )
@@ -122,12 +124,25 @@ onMounted(load)
           </el-tag>
         </template>
       </el-table-column>
+      <el-table-column label="来源" width="150">
+        <template #default="{ row }">
+          <a
+            v-if="row.workshopItemId"
+            :href="`https://steamcommunity.com/sharedfiles/filedetails/?id=${row.workshopItemId}`"
+            target="_blank"
+            rel="noopener"
+          >
+            工坊 #{{ row.workshopItemId }}
+          </a>
+          <span v-else style="color: #909399">官方托管</span>
+        </template>
+      </el-table-column>
       <el-table-column prop="ownerName" label="上传者" width="120" />
       <el-table-column prop="era" label="年代" width="90" />
       <el-table-column prop="downloadCount" label="下载" width="90" sortable="custom" />
       <el-table-column prop="replayCount" label="复盘" width="80" />
       <el-table-column prop="sizeBytes" label="包大小" width="110">
-        <template #default="{ row }">{{ fmtBytes(row.sizeBytes) }}</template>
+        <template #default="{ row }">{{ row.workshopItemId ? '—' : fmtBytes(row.sizeBytes) }}</template>
       </el-table-column>
       <el-table-column prop="createdAt" label="上传时间" width="150" sortable="custom">
         <template #default="{ row }">{{ fmtDate(row.createdAt) }}</template>

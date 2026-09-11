@@ -10,6 +10,7 @@ const routes = [
       { path: 'overview', name: 'overview', component: () => import('../views/OverviewView.vue'), meta: { title: '概览' } },
       { path: 'users', name: 'users', component: () => import('../views/UsersView.vue'), meta: { title: '用户管理' } },
       { path: 'campaigns', name: 'campaigns', component: () => import('../views/CampaignsView.vue'), meta: { title: '战役管理' } },
+      { path: 'workshop', name: 'workshop', component: () => import('../views/WorkshopView.vue'), meta: { title: '创意工坊' } },
       { path: 'blobs', name: 'blobs', component: () => import('../views/BlobsView.vue'), meta: { title: '图床管理' } },
       { path: 'replays', name: 'replays', component: () => import('../views/ReplaysView.vue'), meta: { title: '复盘管理' } },
       { path: 'settings', name: 'settings', component: () => import('../views/SettingsView.vue'), meta: { title: '全局配置' } },
