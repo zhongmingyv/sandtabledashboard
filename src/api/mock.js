@@ -39,7 +39,6 @@ const campaigns = Array.from({ length: 30 }, (_, i) => {
     era: eras[i % eras.length],
     createdAt: iso((30 - i) * 86400000),
     downloadCount: Math.floor(rand(i + 5) * 200),
-    replayCount: Math.floor(rand(i + 6) * 8),
     isDeleted: i % 9 === 4,
     isBanned: i % 13 === 7,
     approvalStatus: ['approved', 'pending', 'approved', 'rejected'][i % 4],
@@ -49,6 +48,8 @@ const campaigns = Array.from({ length: 30 }, (_, i) => {
     // 非空 = 工坊索引行（字节在 Steam，本服只留元数据），此时 sizeBytes 恒 0
     workshopItemId: i % 3 === 1 ? String(3100000000 + i) : '',
     sizeBytes: i % 3 === 1 ? 0 : Math.floor((1 + rand(i + 7) * 24) * 1024 * 1024),
+    // >0 = 「游戏版本」上传同步来的战役，当前第几版
+    gameVersion: i % 3 === 2 ? 1 + (i % 4) : 0,
   }
 })
 
@@ -59,8 +60,8 @@ const workshopBans = [
 
 // 游戏版本：导出独立版的整包。mock 下没有真包可读，上传完成时按「该游戏最新版 + 1」伪造一条。
 const gameReleases = [
-  { gameId: 'camp_' + 'a'.repeat(32), version: 2, title: '赤壁', size: 142 * 1024 * 1024, sha256: 'b'.repeat(64), createdAt: iso(2 * 86400000) },
-  { gameId: 'camp_' + 'a'.repeat(32), version: 1, title: '赤壁', size: 140 * 1024 * 1024, sha256: 'c'.repeat(64), createdAt: iso(9 * 86400000) },
+  { gameId: 'camp_' + 'a'.repeat(32), version: 2, title: '赤壁', size: 142 * 1024 * 1024, sha256: 'b'.repeat(64), createdAt: iso(2 * 86400000), downloadCount: 37, archived: false },
+  { gameId: 'camp_' + 'a'.repeat(32), version: 1, title: '赤壁', size: 140 * 1024 * 1024, sha256: 'c'.repeat(64), createdAt: iso(9 * 86400000), downloadCount: 112, archived: true },
 ]
 const gameUploads = {}
 
@@ -111,21 +112,6 @@ const blobs = Array.from({ length: 12 }, (_, i) => {
     layersJson: isAudio ? '[]' : blobLayerSets[i % blobLayerSets.length],
     ownerName: owner.displayName,
     isBanned: i === 4 || i === 9,
-  }
-})
-
-const replays = Array.from({ length: 60 }, (_, i) => {
-  const c = campaigns[i % campaigns.length]
-  return {
-    replayId: 'p' + String(i + 1).padStart(4, '0'),
-    campaignId: c.id,
-    campaignTitle: c.title,
-    matchId: 'm' + String((i % 25) + 1).padStart(4, '0'),
-    title: `复盘 #${i + 1}`,
-    opCount: 100 + Math.floor(rand(i) * 5000),
-    createdAt: iso(i * 3600000),
-    matchOpBytes: Math.floor((0.1 + rand(i + 1) * 5) * 1024 * 1024),
-    sharedByReplayCount: 1 + (i % 3),
   }
 })
 
@@ -204,7 +190,6 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
       bannedUserCount: users.filter((u) => u.isBanned).length,
       campaignCount: campaigns.filter((c) => !c.isDeleted).length,
       resourceCount: resources.filter((r) => !r.isDeleted).length,
-      replayCount: replays.length,
       diskBytes: [...campaigns, ...resources].reduce((s, x) => s + x.sizeBytes, 0),
     })
   }
@@ -348,9 +333,23 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
     if (size === undefined) return fail(404, 'upload_not_found')
     delete gameUploads[mg[1]]
     const latest = gameReleases[0]
-    const row = { ...latest, version: latest.version + 1, size, sha256: 'd'.repeat(64), createdAt: iso(0) }
+    const row = { ...latest, version: latest.version + 1, size, sha256: 'd'.repeat(64), createdAt: iso(0), downloadCount: 0, archived: false }
+    // 整包只留最新一版：同一游戏的旧版文件清掉，只留记录
+    gameReleases.forEach((r) => { if (r.gameId === row.gameId) r.archived = true })
     gameReleases.unshift(row)
-    return ok(row)
+    // 同步战役管理那一行：按游戏编号原地升级，没有就建一行
+    let camp = campaigns.find((c) => c.gameId === row.gameId)
+    const campaignCreated = !camp
+    if (!camp) {
+      camp = {
+        ...campaigns[2], id: 'c' + String(campaigns.length + 1).padStart(4, '0'), gameId: row.gameId,
+        title: row.title, ownerName: '官方发布', workshopItemId: '', downloadCount: 0,
+        isDeleted: false, isBanned: false, approvalStatus: 'approved', createdAt: iso(0),
+      }
+      campaigns.unshift(camp)
+    }
+    camp.gameVersion = row.version
+    return ok({ ...row, campaignId: camp.id, campaignCreated })
   }
   mg = p.match(/^admin\/game-releases\/([^/]+)\/(\d+)$/)
   if (m === 'DELETE' && mg) {
@@ -398,40 +397,6 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
     const freedBytes = blobs[i].size
     blobs.splice(i, 1)
     return ok({ ok: true, freedBytes })
-  }
-
-  // 复盘
-  if (m === 'GET' && p === 'admin/replays') {
-    let rows = replays.filter((r) => !params.campaignId || r.campaignId === params.campaignId)
-    rows = applySort(rows, params.sort || 'createdAt', params.order)
-    return ok(paginate(rows, Number(params.page) || 1))
-  }
-  let mp = p.match(/^admin\/replays\/([^/]+)$/)
-  if (m === 'DELETE' && mp) {
-    const i = replays.findIndex((x) => x.replayId === mp[1])
-    if (i < 0) return fail(404, 'replay_not_found')
-    replays.splice(i, 1)
-    return ok({ ok: true, purgedOps: params.purgeOps === 'true' || params.purgeOps === true })
-  }
-  if (m === 'POST' && p === 'admin/replays/batch-delete') {
-    let removed = 0
-    if (Array.isArray(data.replayIds)) {
-      for (const id of data.replayIds) {
-        const i = replays.findIndex((x) => x.replayId === id)
-        if (i >= 0) { replays.splice(i, 1); removed++ }
-      }
-    } else if (data.campaignId || data.before) {
-      for (let i = replays.length - 1; i >= 0; i--) {
-        const r = replays[i]
-        if (data.campaignId && r.campaignId !== data.campaignId) continue
-        if (data.before && new Date(r.createdAt) >= new Date(data.before)) continue
-        replays.splice(i, 1); removed++
-      }
-    }
-    return ok({ removed, purgedOps: !!data.purgeOps })
-  }
-  if (m === 'DELETE' && p.match(/^admin\/matches\/([^/]+)\/ops$/)) {
-    return ok({ ok: true, freedBytes: Math.floor(rand(7) * 5 * 1024 * 1024) })
   }
 
   // 配置

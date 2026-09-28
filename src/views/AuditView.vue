@@ -25,7 +25,6 @@ const actionLabel = {
   'blob.ban': '封禁图片',
   'blob.unban': '解封图片',
   'blob.delete': '删除图片',
-  'replay.delete': '删除复盘',
   'setting.write': '改配置',
   'admin.password': '改后台密码',
 }

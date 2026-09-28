@@ -46,12 +46,6 @@ export const api = {
   blobThumb: (sha) => http.getBlob(`/admin/blobs/${sha}/thumb`),
   blobRaw: (sha) => http.getBlob(`/admin/blobs/${sha}/raw`),
 
-  // 复盘 / 操作流
-  replays: (params) => http.get('/admin/replays', params),
-  deleteReplay: (id, purgeOps) => http.del(`/admin/replays/${id}`, { purgeOps }),
-  batchDeleteReplays: (payload) => http.post('/admin/replays/batch-delete', payload),
-  purgeMatchOps: (id) => http.del(`/admin/matches/${id}/ops`),
-
   // 配置
   settings: () => http.get('/admin/settings'),
   saveSettings: (items) => http.put('/admin/settings', { items }),

@@ -16,7 +16,6 @@ async function load() {
       { label: '注册用户', value: data.value.userCount, sub: `封禁 ${data.value.bannedUserCount}` },
       { label: '战役（活）', value: data.value.campaignCount },
       { label: '资源（活）', value: data.value.resourceCount },
-      { label: '复盘', value: data.value.replayCount },
       { label: '磁盘占用（估）', value: fmtBytes(data.value.diskBytes) },
     ]
   } finally {

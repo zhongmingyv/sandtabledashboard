@@ -60,8 +60,8 @@ async function hardDelete(row) {
   try {
     await ElMessageBox.confirm(
       row.workshopItemId
-        ? `硬删除「${row.title}」？本服只有这条索引行，删掉后该条目的房间/复盘/收藏一并没了；Steam 上的条目本身不受影响（要拦内容请去「创意工坊」页把条目 id 加进名单）。不可恢复。`
-        : `硬删除「${row.title}」？将物理删除 zip（${fmtBytes(row.sizeBytes)}）并触发 blob 回收，不可恢复。`,
+        ? `硬删除「${row.title}」？本服只有这条索引行，删掉后该条目的房间/收藏一并没了；Steam 上的条目本身不受影响（要拦内容请去「创意工坊」页把条目 id 加进名单）。不可恢复。`
+        : `硬删除「${row.title}」？将删除战役包（${fmtBytes(row.sizeBytes)}）、全部房间（含进行中的）与收藏，并触发 blob 回收，不可恢复。战役编号仍归原作者，别人不能拿它重新上传。`,
       '硬删除（不可逆）',
       { type: 'error', confirmButtonText: '确认删除', confirmButtonClass: 'el-button--danger' },
     )
@@ -137,10 +137,12 @@ onMounted(load)
           <span v-else style="color: #909399">官方托管</span>
         </template>
       </el-table-column>
+      <el-table-column label="版本" width="90">
+        <template #default="{ row }">{{ row.gameVersion > 0 ? `第 ${row.gameVersion} 版` : '—' }}</template>
+      </el-table-column>
       <el-table-column prop="ownerName" label="上传者" width="120" />
       <el-table-column prop="era" label="年代" width="90" />
       <el-table-column prop="downloadCount" label="下载" width="90" sortable="custom" />
-      <el-table-column prop="replayCount" label="复盘" width="80" />
       <el-table-column prop="sizeBytes" label="包大小" width="110">
         <template #default="{ row }">{{ row.workshopItemId ? '—' : fmtBytes(row.sizeBytes) }}</template>
       </el-table-column>
