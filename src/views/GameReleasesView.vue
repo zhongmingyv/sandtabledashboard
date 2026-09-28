@@ -29,6 +29,7 @@ const groups = computed(() => {
     gameId,
     title: versions[0].title,
     latest: versions.find((v) => !v.archived) || null,
+    hasCampaign: versions.some((v) => v.hasCampaign),
     versions,
     totalDownloads: versions.reduce((s, v) => s + (v.downloadCount || 0), 0),
   }))
@@ -76,6 +77,19 @@ async function upload(e) {
     lastError.value = err?.response?.data?.message || err?.response?.data?.error || '上传失败'
   } finally {
     uploading.value = false
+  }
+}
+
+// 「发布战役」：拿当前那一版整包补建战役（整包登记早于战役同步的老版本才会缺）
+const publishing = ref('')
+async function publishCampaign(g) {
+  publishing.value = g.gameId
+  try {
+    await api.publishGameCampaign(g.gameId)
+    ElMessage.success(`「${g.title}」的战役已发布（第 ${g.latest.version} 版）`)
+    load()
+  } finally {
+    publishing.value = ''
   }
 }
 
@@ -153,6 +167,17 @@ onMounted(load)
           <strong>{{ g.title }}</strong>
           <el-tag v-if="g.latest" type="success">最新：第 {{ g.latest.version }} 版</el-tag>
           <el-tag v-else type="warning">暂无可下载的版本</el-tag>
+          <el-tag v-if="g.hasCampaign" type="success" effect="plain">已发布战役</el-tag>
+          <el-button
+            v-else
+            size="small"
+            type="primary"
+            :disabled="!g.latest"
+            :loading="publishing === g.gameId"
+            @click="publishCampaign(g)"
+          >
+            发布战役
+          </el-button>
           <el-tag type="info">累计下载 {{ g.totalDownloads }} 次</el-tag>
           <span style="color: #909399; font-family: monospace">{{ g.gameId }}</span>
           <div class="spacer" style="flex: 1" />

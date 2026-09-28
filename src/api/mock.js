@@ -314,7 +314,28 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
 
   // 游戏版本
   if (m === 'GET' && p === 'admin/game-releases') {
-    return ok({ chunkBytes: 16 * 1024 * 1024, items: [...gameReleases] })
+    const withCampaign = new Set(campaigns.filter((c) => c.gameId && !c.isDeleted).map((c) => c.gameId))
+    return ok({
+      chunkBytes: 16 * 1024 * 1024,
+      items: gameReleases.map((r) => ({ ...r, hasCampaign: withCampaign.has(r.gameId) })),
+    })
+  }
+  let mpc = p.match(/^admin\/game-releases\/([^/]+)\/campaign$/)
+  if (m === 'POST' && mpc) {
+    const latest = gameReleases.find((r) => r.gameId === mpc[1] && !r.archived)
+    if (!latest) return fail(400, 'no_release')
+    let camp = campaigns.find((c) => c.gameId === latest.gameId)
+    const created = !camp
+    if (!camp) {
+      camp = {
+        ...campaigns[2], id: 'c' + String(campaigns.length + 1).padStart(4, '0'), gameId: latest.gameId,
+        title: latest.title, ownerName: '官方发布', workshopItemId: '', downloadCount: 0,
+        isDeleted: false, isBanned: false, approvalStatus: 'approved', createdAt: iso(0),
+      }
+      campaigns.unshift(camp)
+    }
+    camp.gameVersion = latest.version
+    return ok({ campaignId: camp.id, created })
   }
   if (m === 'POST' && p === 'admin/game-releases/uploads') {
     const uploadId = Math.random().toString(16).slice(2).padEnd(32, '0').slice(0, 32)

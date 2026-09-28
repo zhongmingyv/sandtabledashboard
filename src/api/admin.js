@@ -58,6 +58,8 @@ export const api = {
   // 游戏版本（导出独立版的整包，玩家端启动查新 / 下载）
   gameReleases: () => http.get('/admin/game-releases'),
   deleteGameRelease: (gameId, version) => http.del(`/admin/game-releases/${gameId}/${version}`),
+  // 拿这个游戏当前那一版整包补建「战役管理」那一条（整包登记早于战役同步的老版本才需要）
+  publishGameCampaign: (gameId) => http.post(`/admin/game-releases/${gameId}/campaign`),
   uploadGamePackage,
 }
 
