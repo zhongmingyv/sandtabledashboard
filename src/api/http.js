@@ -69,10 +69,33 @@ export async function requestBlob(url) {
   }
 }
 
+// 原样字节上传（游戏整包分片）：请求体是 Blob 本身而不是 JSON；一片十几 MB，慢网可能远超默认 15 秒，
+// 所以不限时，改由 onProgress 让界面看得到在动。错误处理与 request() 同一套。
+export async function requestBinary(url, blob, params, onProgress) {
+  if (USE_MOCK) return request('PUT', url, { params, data: blob })
+  try {
+    const resp = await instance.request({
+      method: 'PUT',
+      url,
+      params,
+      data: blob,
+      timeout: 0,
+      headers: { 'Content-Type': 'application/octet-stream' },
+      onUploadProgress: (e) => onProgress?.(e.loaded),
+    })
+    return resp.data
+  } catch (err) {
+    const status = err?.response?.status
+    if (status === 401) handleUnauthorized()
+    throw err
+  }
+}
+
 export const http = {
   get: (url, params) => request('GET', url, { params }),
   post: (url, data, params) => request('POST', url, { data, params }),
   put: (url, data, params) => request('PUT', url, { data, params }),
   del: (url, params) => request('DELETE', url, { params }),
   getBlob: (url) => requestBlob(url),
+  putBinary: (url, blob, params, onProgress) => requestBinary(url, blob, params, onProgress),
 }

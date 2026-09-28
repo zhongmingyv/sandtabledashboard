@@ -57,6 +57,13 @@ const workshopBans = [
   { itemId: '3100000019', reason: '含违规文本', bannedBy: 'zhongmingyu', bannedAt: iso(86400000) },
 ]
 
+// 游戏版本：导出独立版的整包。mock 下没有真包可读，上传完成时按「该游戏最新版 + 1」伪造一条。
+const gameReleases = [
+  { gameId: 'camp_' + 'a'.repeat(32), version: 2, title: '赤壁', size: 142 * 1024 * 1024, sha256: 'b'.repeat(64), createdAt: iso(2 * 86400000) },
+  { gameId: 'camp_' + 'a'.repeat(32), version: 1, title: '赤壁', size: 140 * 1024 * 1024, sha256: 'c'.repeat(64), createdAt: iso(9 * 86400000) },
+]
+const gameUploads = {}
+
 const layers = ['background', 'height', 'terrain', 'edge', 'road', 'object', 'ui']
 const resources = Array.from({ length: 50 }, (_, i) => {
   const owner = users[(i + 3) % users.length]
@@ -320,6 +327,39 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
     return ok({ itemId: mw[1], banned: false })
   }
 
+  // 游戏版本
+  if (m === 'GET' && p === 'admin/game-releases') {
+    return ok({ chunkBytes: 16 * 1024 * 1024, items: [...gameReleases] })
+  }
+  if (m === 'POST' && p === 'admin/game-releases/uploads') {
+    const uploadId = Math.random().toString(16).slice(2).padEnd(32, '0').slice(0, 32)
+    gameUploads[uploadId] = 0
+    return ok({ uploadId, chunkBytes: 16 * 1024 * 1024 })
+  }
+  let mg = p.match(/^admin\/game-releases\/uploads\/([^/]+)$/)
+  if (m === 'PUT' && mg) {
+    if (!(mg[1] in gameUploads)) return fail(404, 'upload_not_found')
+    gameUploads[mg[1]] += data?.size || 0
+    return ok({ received: gameUploads[mg[1]] })
+  }
+  mg = p.match(/^admin\/game-releases\/uploads\/([^/]+)\/complete$/)
+  if (m === 'POST' && mg) {
+    const size = gameUploads[mg[1]]
+    if (size === undefined) return fail(404, 'upload_not_found')
+    delete gameUploads[mg[1]]
+    const latest = gameReleases[0]
+    const row = { ...latest, version: latest.version + 1, size, sha256: 'd'.repeat(64), createdAt: iso(0) }
+    gameReleases.unshift(row)
+    return ok(row)
+  }
+  mg = p.match(/^admin\/game-releases\/([^/]+)\/(\d+)$/)
+  if (m === 'DELETE' && mg) {
+    const i = gameReleases.findIndex((r) => r.gameId === mg[1] && r.version === Number(mg[2]))
+    if (i < 0) return fail(404, 'game_release_not_found')
+    gameReleases.splice(i, 1)
+    return ok({ ok: true })
+  }
+
   // 图床（内容寻址 blob store）
   if (m === 'GET' && p === 'admin/blobs') {
     const kindOf = (b) => (String(b.mediaType).startsWith('audio/') ? 'audio' : 'image')
@@ -413,7 +453,7 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
     return ok(paginate(audit, Number(params.page) || 1))
   }
   if (m === 'GET' && p === 'admin/login-logs') {
-    return ok(paginate(Array.from({ length: 12 }, (_, i) => ({ id: i + 1, email: 'demo@example.com', displayName: '演示用户', machineFingerprint: i % 3 === 0 ? '' : 'a'.repeat(64), clientVersion: i % 3 === 0 ? '' : '0.1.3', ipAddress: '127.0.0.1', lastSessionMinutes: i % 3 === 0 ? 0 : i * 37, createdAt: iso(-i * 3600000) })), Number(params.page) || 1))
+    return ok(paginate(Array.from({ length: 12 }, (_, i) => ({ id: i + 1, email: 'demo@example.com', displayName: '演示用户', machineFingerprint: i % 3 === 0 ? '' : 'a'.repeat(64), clientVersion: i % 3 === 0 ? '' : '0.1.3', ipAddress: '127.0.0.1', lastSessionMinutes: i % 3 === 0 ? 0 : i * 37, lastActiveMinutes: i % 3 === 0 ? 0 : i * 10, createdAt: iso(-i * 3600000) })), Number(params.page) || 1))
   }
 
   return fail(404, 'mock_route_not_found: ' + m + ' ' + p)

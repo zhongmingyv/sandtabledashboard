@@ -18,8 +18,10 @@ onMounted(load)
     <el-table-column prop="machineFingerprint" label="机器指纹" min-width="260"><template #default="{row}">{{ row.machineFingerprint || '未上报' }}</template></el-table-column>
     <el-table-column prop="clientVersion" label="编辑器版本" width="120"><template #default="{row}">{{ row.clientVersion || '未上报' }}</template></el-table-column>
     <el-table-column prop="ipAddress" label="IP" width="160" />
-    <!-- 这一行记的是**上一次**会话用了多久，不是本次；客户端自报，服务端已钳过界 -->
+    <!-- 这两列记的都是**上一次**会话，不是本次；客户端自报，服务端已钳过界。
+         「上次时长」= 编辑器开了多久（挂机也算）；「在线时长」= 其中真在改内容的时间，按十分钟一档计 -->
     <el-table-column prop="lastSessionMinutes" label="上次时长" width="120"><template #default="{row}">{{ fmtMinutes(row.lastSessionMinutes) }}</template></el-table-column>
+    <el-table-column prop="lastActiveMinutes" label="在线时长" width="120"><template #default="{row}">{{ fmtMinutes(row.lastActiveMinutes) }}</template></el-table-column>
   </el-table>
   <div class="pager"><el-pagination layout="prev, pager, next" :total="total" :page-size="PAGE_SIZE" :current-page="query.page" @current-change="p => { query.page=p; load() }" /></div>
 </div></template>

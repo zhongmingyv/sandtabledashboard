@@ -60,4 +60,39 @@ export const api = {
   // 审计
   audit: (params) => http.get('/admin/audit', params),
   loginLogs: (params) => http.get('/admin/login-logs', params),
+
+  // 游戏版本（导出独立版的整包，玩家端启动查新 / 下载）
+  gameReleases: () => http.get('/admin/game-releases'),
+  deleteGameRelease: (gameId, version) => http.del(`/admin/game-releases/${gameId}/${version}`),
+  uploadGamePackage,
+}
+
+/**
+ * 分片上传一个游戏整包并登记。官方站在 Cloudflare 后面，单个请求体超过 100MB 会被边缘直接 413，
+ * 而一个导出游戏光 exe 就一百多 MB，所以按服务器给的片大小（16MB）逐片 PUT。
+ * 某一片撞上 409（服务器已收字节数与本地不一致，比如上一片其实已经落盘、只是应答丢了），
+ * 按服务器报的字节数续传，不从头来。
+ * onProgress(已发字节, 总字节)。版本号不用填：服务器从包里的 data/server.json 读。
+ */
+async function uploadGamePackage(file, onProgress) {
+  const { uploadId, chunkBytes } = await http.post('/admin/game-releases/uploads')
+  let offset = 0
+  while (offset < file.size) {
+    const end = Math.min(offset + chunkBytes, file.size)
+    try {
+      const res = await http.putBinary(
+        `/admin/game-releases/uploads/${uploadId}`,
+        file.slice(offset, end),
+        { offset },
+        (loaded) => onProgress?.(offset + loaded, file.size),
+      )
+      offset = res.received
+    } catch (err) {
+      const received = err?.response?.status === 409 ? err.response.data?.received : undefined
+      if (typeof received !== 'number') throw err
+      offset = received
+    }
+    onProgress?.(offset, file.size)
+  }
+  return http.post(`/admin/game-releases/uploads/${uploadId}/complete`)
 }

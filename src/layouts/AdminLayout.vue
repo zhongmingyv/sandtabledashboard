@@ -16,6 +16,7 @@ const menus = [
   { name: 'users', title: '用户管理', icon: 'User' },
   { name: 'campaigns', title: '战役管理', icon: 'Files' },
   { name: 'workshop', title: '创意工坊', icon: 'Shop' },
+  { name: 'game-releases', title: '游戏版本', icon: 'Upload' },
   { name: 'blobs', title: '图床管理', icon: 'Picture' },
   { name: 'replays', title: '复盘管理', icon: 'VideoPlay' },
   { name: 'settings', title: '全局配置', icon: 'Setting' },
