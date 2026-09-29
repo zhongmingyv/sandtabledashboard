@@ -25,6 +25,7 @@ const actionLabel = {
   'blob.ban': '封禁图片',
   'blob.unban': '解封图片',
   'blob.delete': '删除图片',
+  'match.release': '解散房间',
   'setting.write': '改配置',
   'admin.password': '改后台密码',
 }

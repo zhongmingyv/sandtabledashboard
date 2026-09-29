@@ -31,6 +31,10 @@ export const api = {
     http.put(`/admin/campaigns/${id}/featured`, { isFeatured }),
   setCampaignPinned: (id, isPinned) => http.put(`/admin/campaigns/${id}/pinned`, { isPinned }),
 
+  // 房间（没结束的对局桌）
+  matches: (params) => http.get('/admin/matches', params),
+  releaseMatch: (id) => http.post(`/admin/matches/${id}/release`),
+
   // 创意工坊条目名单（ADR-0010 §11）。键是 Steam 条目 id，不是本服的 Campaign 行——
   // 绕开游戏订阅的条目本服可能根本没有对应行。封禁走 /admin 那条（AdminSession 鉴权），
   // 列表与解封是后台独有的路由。

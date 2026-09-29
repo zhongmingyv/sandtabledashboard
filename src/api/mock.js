@@ -65,6 +65,30 @@ const gameReleases = [
 ]
 const gameUploads = {}
 
+// 房间：没结束的对局桌。形状 = 玩家端对局详情 + lastOpAt / onlinePlayerIds
+const matches = Array.from({ length: 6 }, (_, i) => {
+  const camp = campaigns[i % campaigns.length]
+  const a = users[i], b = users[i + 7]
+  const playing = i % 3 !== 0
+  return {
+    matchId: 'm' + String(i + 1).padStart(4, '0'),
+    campaignId: camp.id,
+    campaignTitle: camp.title,
+    workshopItemId: camp.workshopItemId,
+    state: playing ? 'Playing' : 'Waiting',
+    createdAt: now - (i + 1) * 5400000,
+    lastOpAt: now - i * 600000,
+    hostSeatIndex: 0,
+    seats: [
+      { seatIndex: 0, playerId: a.playerId, playerName: a.displayName, factionId: 'F_Wei', factionName: '魏', hasLeft: false },
+      ...(playing ? [{ seatIndex: 1, playerId: b.playerId, playerName: b.displayName, factionId: 'F_Shu', factionName: '蜀', hasLeft: i === 4 }] : []),
+    ],
+    vacantFactions: playing ? (i === 4 ? ['F_Shu'] : []) : ['F_Shu'],
+    aiFactions: [],
+    onlinePlayerIds: i % 2 === 0 ? [a.playerId] : [a.playerId, b.playerId],
+  }
+})
+
 const layers = ['background', 'height', 'terrain', 'edge', 'road', 'object', 'ui']
 const resources = Array.from({ length: 50 }, (_, i) => {
   const owner = users[(i + 3) % users.length]
@@ -288,6 +312,21 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
     if (!c) return fail(404, 'campaign_not_found')
     c.isPinned = !!data.isPinned
     return ok({ isPinned: c.isPinned })
+  }
+
+  // 房间
+  if (m === 'GET' && p === 'admin/matches') {
+    const rows = matches.filter(
+      (x) => (!params.state || params.state === 'all' || x.state === params.state) && contains(x.campaignTitle, params.q),
+    )
+    return ok(paginate(rows, Number(params.page) || 1))
+  }
+  let mm = p.match(/^admin\/matches\/([^/]+)\/release$/)
+  if (m === 'POST' && mm) {
+    const i = matches.findIndex((x) => x.matchId === mm[1])
+    if (i < 0) return fail(404, 'match_not_found')
+    matches.splice(i, 1)
+    return ok({ ok: true, released: true })
   }
 
   // 创意工坊条目名单
