@@ -12,6 +12,8 @@ const loading = ref(false)
 const rows = ref([])
 const uploading = ref(false)
 const progress = ref(0)
+// 传完之后服务器登记的阶段（空 = 还在传）
+const stage = ref('')
 const fileInput = ref(null)
 const lastResult = ref(null)
 const lastError = ref('')
@@ -57,12 +59,19 @@ async function upload(e) {
   }
   uploading.value = true
   progress.value = 0
+  stage.value = ''
   lastResult.value = null
   lastError.value = ''
   try {
-    const res = await api.uploadGamePackage(file, (sent, total) => {
-      progress.value = Math.floor((sent * 100) / total)
-    })
+    const res = await api.uploadGamePackage(
+      file,
+      (sent, total) => {
+        progress.value = Math.floor((sent * 100) / total)
+      },
+      (s) => {
+        stage.value = s || '处理中'
+      },
+    )
     lastResult.value = res
     ElMessage.success(
       `「${res.title}」第 ${res.version} 版已成为最新版；战役管理${res.campaignCreated ? '已新建这条战役' : `已同步到第 ${res.version} 版`}`,
@@ -72,6 +81,7 @@ async function upload(e) {
     lastError.value = err?.response?.data?.message || err?.response?.data?.error || '上传失败'
   } finally {
     uploading.value = false
+    stage.value = ''
   }
 }
 
@@ -129,10 +139,11 @@ onMounted(load)
       <input ref="fileInput" type="file" accept=".zip" style="display: none" @change="upload" />
       <el-button type="primary" :loading="uploading" @click="pick">上传新版本</el-button>
       <el-progress
-        v-if="uploading"
+        v-if="uploading && !stage"
         :percentage="progress"
         style="width: 280px"
       />
+      <span v-if="uploading && stage" style="color: #909399">已传完，服务器正在处理：{{ stage }}……</span>
       <div class="spacer" />
       <el-button @click="load">刷新</el-button>
     </div>

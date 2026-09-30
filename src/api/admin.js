@@ -71,8 +71,12 @@ export const api = {
  * 某一片撞上 409（服务器已收字节数与本地不一致，比如上一片其实已经落盘、只是应答丢了），
  * 按服务器报的字节数续传，不从头来。
  * onProgress(已发字节, 总字节)。版本号不用填：服务器从包里的 data/server.json 读。
+ *
+ * 传完之后服务器在后台登记（解包、打战役包、把整包传上 R2，要几十秒到几分钟）：complete 立刻回
+ * { status: 'processing', stage }，这里每 2 秒问一次进度，onStage(阶段说明) 给界面显示，做完返回登记结果。
+ * 不能让 complete 请求一直挂着等：前端 15 秒超时、Cloudflare 代理 100 秒超时都会先断。
  */
-async function uploadGamePackage(file, onProgress) {
+async function uploadGamePackage(file, onProgress, onStage) {
   const { uploadId, chunkBytes } = await http.post('/admin/game-releases/uploads')
   let offset = 0
   while (offset < file.size) {
@@ -92,5 +96,11 @@ async function uploadGamePackage(file, onProgress) {
     }
     onProgress?.(offset, file.size)
   }
-  return http.post(`/admin/game-releases/uploads/${uploadId}/complete`)
+  let res = await http.post(`/admin/game-releases/uploads/${uploadId}/complete`)
+  while (res?.status === 'processing') {
+    onStage?.(res.stage)
+    await new Promise((r) => setTimeout(r, 2000))
+    res = await http.get(`/admin/game-releases/uploads/${uploadId}`)
+  }
+  return res
 }
