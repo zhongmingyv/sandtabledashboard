@@ -31,6 +31,8 @@ const groups = computed(() => {
     title: versions[0].title,
     latest: versions.find((v) => !v.archived) || null,
     hasCampaign: versions.some((v) => v.hasCampaign),
+    // 「Maker 也能联机」当前值（还没有战役 = null）
+    makerVisible: versions.find((v) => v.makerVisible !== null && v.makerVisible !== undefined)?.makerVisible ?? null,
     versions,
     totalDownloads: versions.reduce((s, v) => s + (v.downloadCount || 0), 0),
   }))
@@ -50,6 +52,30 @@ function pick() {
   fileInput.value.click()
 }
 
+// 「Maker 也能联机」必须每次明说，不给默认（ADR-0014 §7）：整包将来可能单独发行、只给游戏玩。
+// 点「是」/「否」之外的地方关掉 = 不上传。
+async function askMakerVisible(title) {
+  try {
+    await ElMessageBox.confirm(
+      '导出的游戏永远能联机。要不要让 Maker（编辑器）玩家也能开桌、加入这个战役？<br>' +
+        '是：服务器把游戏里的数据拆成战役包与素材传到存储，Maker 玩家按需下载。<br>' +
+        '否：Maker 的战役列表与房间列表里看不到它，只有游戏里能联机。以后可以在这里随时改。',
+      `${title}：Maker 也能联机吗？`,
+      {
+        confirmButtonText: '是，Maker 也能联机',
+        cancelButtonText: '否，只给游戏',
+        distinguishCancelAndClose: true,
+        dangerouslyUseHTMLString: true, // 只有上面这段固定文字，不含用户输入
+        type: 'info',
+      },
+    )
+    return true
+  } catch (action) {
+    if (action === 'cancel') return false
+    return null
+  }
+}
+
 async function upload(e) {
   const file = e.target.files?.[0]
   if (!file) return
@@ -57,6 +83,8 @@ async function upload(e) {
     ElMessage.error('请选择 zip 文件：导出的整个游戏目录（exe + data）打成的压缩包')
     return
   }
+  const makerVisible = await askMakerVisible(file.name)
+  if (makerVisible === null) return
   uploading.value = true
   progress.value = 0
   stage.value = ''
@@ -65,6 +93,7 @@ async function upload(e) {
   try {
     const res = await api.uploadGamePackage(
       file,
+      makerVisible,
       (sent, total) => {
         progress.value = Math.floor((sent * 100) / total)
       },
@@ -88,13 +117,43 @@ async function upload(e) {
 // 「发布战役」：拿当前那一版整包补建战役（整包登记早于战役同步的老版本才会缺）
 const publishing = ref('')
 async function publishCampaign(g) {
+  const makerVisible = await askMakerVisible(g.title)
+  if (makerVisible === null) return
   publishing.value = g.gameId
   try {
-    await api.publishGameCampaign(g.gameId)
+    await api.publishGameCampaign(g.gameId, makerVisible)
     ElMessage.success(`「${g.title}」的战役已发布（第 ${g.latest.version} 版）`)
     load()
   } finally {
     publishing.value = ''
+  }
+}
+
+// 事后改「Maker 也能联机」：关立刻生效（包删掉）；开要拿最新整包重新拆，服务器后台做，几十秒到几分钟
+const switching = ref('')
+const switchStage = ref('')
+async function toggleMakerVisible(g, on) {
+  try {
+    await ElMessageBox.confirm(
+      on
+        ? `打开后，服务器会拿「${g.title}」最新一版整包拆出战役包与素材传到存储，Maker 玩家就能开桌、加入。继续？`
+        : `关闭后，Maker 玩家看不到「${g.title}」、开不了桌也进不了桌；存储上的战役包删掉。游戏里联机不受影响。继续？`,
+      'Maker 也能联机',
+      { type: 'warning' },
+    )
+  } catch {
+    return
+  }
+  switching.value = g.gameId
+  switchStage.value = ''
+  try {
+    await api.setMakerVisible(g.gameId, on, (s) => (switchStage.value = s))
+    ElMessage.success(on ? 'Maker 玩家现在也能联机了' : '已改为只给游戏联机')
+    load()
+  } catch (err) {
+    ElMessage.error(err?.response?.data?.message || '操作失败')
+  } finally {
+    switching.value = ''
   }
 }
 
@@ -132,6 +191,7 @@ onMounted(load)
         在编辑器「导出独立版」时填好服务器地址与版本号（可勾「同时打一个 zip」），把 zip 传到这里就成为该游戏的最新版。
         版本号从包里读，不用填；比已有最新版还旧的包会被拒。玩家打开旧版游戏时会提示下载。
         只保留最新一版：传了新版，旧版的文件就清掉（只留下载次数记录）；战役管理里那条战役同时换成新版本。
+        每次上传都要选「Maker 也能联机」：选否则只有导出的游戏能联机，Maker 里看不到；上传后也能随时用开关改。
       </template>
     </el-alert>
 
@@ -174,6 +234,16 @@ onMounted(load)
           <el-tag v-if="g.latest" type="success">最新：第 {{ g.latest.version }} 版</el-tag>
           <el-tag v-else type="warning">暂无可下载的版本</el-tag>
           <el-tag v-if="g.hasCampaign" type="success" effect="plain">已发布战役</el-tag>
+          <span v-if="g.hasCampaign" style="display: inline-flex; align-items: center; gap: 6px">
+            Maker 也能联机
+            <el-switch
+              :model-value="!!g.makerVisible"
+              :loading="switching === g.gameId"
+              :disabled="!!switching || !g.latest"
+              @change="(v) => toggleMakerVisible(g, v)"
+            />
+            <span v-if="switching === g.gameId && switchStage" style="color: #909399">{{ switchStage }}……</span>
+          </span>
           <el-button
             v-else
             size="small"

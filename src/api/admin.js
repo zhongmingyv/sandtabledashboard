@@ -60,9 +60,38 @@ export const api = {
   // 游戏版本（导出独立版的整包，玩家端启动查新 / 下载）
   gameReleases: () => http.get('/admin/game-releases'),
   deleteGameRelease: (gameId, version) => http.del(`/admin/game-releases/${gameId}/${version}`),
-  // 拿这个游戏当前那一版整包补建「战役管理」那一条（整包登记早于战役同步的老版本才需要）
-  publishGameCampaign: (gameId) => http.post(`/admin/game-releases/${gameId}/campaign`),
+  // 拿这个游戏当前那一版整包补建「战役管理」那一条（整包登记早于战役同步的老版本才需要）。
+  // makerVisible 必填（ADR-0014 §7）：true = Maker 也能联机；false = 只给导出的游戏
+  publishGameCampaign: (gameId, makerVisible) =>
+    http.post(`/admin/game-releases/${gameId}/campaign`, undefined, { makerVisible }),
   uploadGamePackage,
+  setMakerVisible,
+
+  // 战役审核（ADR-0014 §9）：按版本审。放行 / 驳回针对战役当前那一版待审版
+  reviewRevisions: (params) => http.get('/admin/review/revisions', params),
+  reviewRevision: (id) => http.get(`/admin/review/revisions/${id}`),
+  approveCampaign: (id) => http.post(`/admin/review/campaigns/${id}/approve`),
+  rejectCampaign: (id, reason, block = false) => http.post(`/admin/review/campaigns/${id}/reject`, { reason, block }),
+  banCampaignAsset: (sha) => http.post(`/admin/campaign-assets/${sha}/ban`),
+}
+
+/** 等后台任务做完：每 2 秒问一次，onStage(阶段说明) 给界面显示，做完返回结果。 */
+async function waitJob(first, jobId, onStage) {
+  let res = first
+  while (res?.status === 'processing') {
+    onStage?.(res.stage)
+    await new Promise((r) => setTimeout(r, 2000))
+    res = await http.get(`/admin/game-releases/uploads/${jobId}`)
+  }
+  return res
+}
+
+/**
+ * 事后改「Maker 也能联机」。关：立刻完成。开：服务器要拿最新整包拆出战役包与素材再传，在后台做，这里轮询到做完。
+ */
+async function setMakerVisible(gameId, makerVisible, onStage) {
+  const res = await http.put(`/admin/game-releases/${gameId}/maker-visible`, { makerVisible })
+  return res?.status === 'processing' ? waitJob(res, res.jobId, onStage) : res
 }
 
 /**
@@ -71,12 +100,13 @@ export const api = {
  * 某一片撞上 409（服务器已收字节数与本地不一致，比如上一片其实已经落盘、只是应答丢了），
  * 按服务器报的字节数续传，不从头来。
  * onProgress(已发字节, 总字节)。版本号不用填：服务器从包里的 data/server.json 读。
+ * makerVisible：是 = Maker 玩家也能开桌加入（服务器把 data/ 拆成战役包 + 素材传上去）；否 = 只有导出的游戏能联机。
  *
  * 传完之后服务器在后台登记（解包、打战役包、把整包传上 R2，要几十秒到几分钟）：complete 立刻回
  * { status: 'processing', stage }，这里每 2 秒问一次进度，onStage(阶段说明) 给界面显示，做完返回登记结果。
  * 不能让 complete 请求一直挂着等：前端 15 秒超时、Cloudflare 代理 100 秒超时都会先断。
  */
-async function uploadGamePackage(file, onProgress, onStage) {
+async function uploadGamePackage(file, makerVisible, onProgress, onStage) {
   const { uploadId, chunkBytes } = await http.post('/admin/game-releases/uploads')
   let offset = 0
   while (offset < file.size) {
@@ -96,11 +126,7 @@ async function uploadGamePackage(file, onProgress, onStage) {
     }
     onProgress?.(offset, file.size)
   }
-  let res = await http.post(`/admin/game-releases/uploads/${uploadId}/complete`)
-  while (res?.status === 'processing') {
-    onStage?.(res.stage)
-    await new Promise((r) => setTimeout(r, 2000))
-    res = await http.get(`/admin/game-releases/uploads/${uploadId}`)
-  }
-  return res
+  // makerVisible：「Maker 也能联机」，服务器要求每次明说（ADR-0014 §7）
+  const res = await http.post(`/admin/game-releases/uploads/${uploadId}/complete`, undefined, { makerVisible })
+  return waitJob(res, uploadId, onStage)
 }

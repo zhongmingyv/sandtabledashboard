@@ -12,6 +12,7 @@ const routes = [
       { path: 'campaigns', name: 'campaigns', component: () => import('../views/CampaignsView.vue'), meta: { title: '战役管理' } },
       { path: 'rooms', name: 'rooms', component: () => import('../views/RoomsView.vue'), meta: { title: '房间' } },
       { path: 'workshop', name: 'workshop', component: () => import('../views/WorkshopView.vue'), meta: { title: '创意工坊' } },
+      { path: 'review', name: 'review', component: () => import('../views/ReviewView.vue'), meta: { title: '战役审核' } },
       { path: 'game-releases', name: 'game-releases', component: () => import('../views/GameReleasesView.vue'), meta: { title: '游戏版本' } },
       { path: 'blobs', name: 'blobs', component: () => import('../views/BlobsView.vue'), meta: { title: '图床管理' } },
       { path: 'settings', name: 'settings', component: () => import('../views/SettingsView.vue'), meta: { title: '全局配置' } },
