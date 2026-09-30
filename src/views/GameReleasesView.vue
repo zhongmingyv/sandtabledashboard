@@ -6,7 +6,6 @@
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { api } from '../api/admin'
-import { API_BASE } from '../config'
 import { fmtBytes, fmtDate } from '../utils/format'
 
 const loading = ref(false)
@@ -34,10 +33,6 @@ const groups = computed(() => {
     totalDownloads: versions.reduce((s, v) => s + (v.downloadCount || 0), 0),
   }))
 })
-
-function downloadUrl(gameId) {
-  return `${API_BASE.replace(/\/+$/, '')}/games/${gameId}/download`
-}
 
 async function load() {
   loading.value = true
@@ -181,7 +176,8 @@ onMounted(load)
           <el-tag type="info">累计下载 {{ g.totalDownloads }} 次</el-tag>
           <span style="color: #909399; font-family: monospace">{{ g.gameId }}</span>
           <div class="spacer" style="flex: 1" />
-          <el-button link type="primary" @click="copy(downloadUrl(g.gameId))">复制下载地址</el-button>
+          <!-- 地址由服务器给（文件在 R2 上，带内容哈希；换了新版地址就变）。全清了就没有可下载的版本 -->
+          <el-button link type="primary" :disabled="!g.latest?.url" @click="copy(g.latest.url)">复制下载地址</el-button>
         </div>
       </template>
       <el-table :data="g.versions" border size="small" :row-style="({ row }) => (row.archived ? { color: '#a8abb2' } : {})">

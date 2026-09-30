@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Picture, Headset, CopyDocument } from '@element-plus/icons-vue'
 import { api } from '../api/admin'
@@ -21,12 +21,11 @@ const query = reactive({
   page: 1,
 })
 
-// sha -> object URL 缓存（缩略图 / 音频）
-const thumbUrls = reactive({})
-const audioUrls = reactive({})
-// sha -> 加载状态：'loading' | 'error'（成功后转为 URL，删除该键）
-const thumbState = reactive({})
-const audioState = reactive({})
+// 文件在 R2 公开桶里：列表项自带 url / thumbUrl，直接放进 <img>/<audio>，不再经后端转发字节。
+// 点过「试听」的音频才挂 <audio>，免得一进页面就连一串音频地址
+const audioOn = reactive({})
+// 缩略图加载失败的（封禁时文件当场删掉 → 404）
+const thumbError = reactive({})
 
 function isImage(row) {
   return String(row.mediaType || '').startsWith('image/')
@@ -48,60 +47,12 @@ function shortSha(sha) {
   return sha ? String(sha).slice(0, 12) : '-'
 }
 
-function revokeAll() {
-  for (const k of Object.keys(thumbUrls)) {
-    URL.revokeObjectURL(thumbUrls[k])
-    delete thumbUrls[k]
-  }
-  for (const k of Object.keys(audioUrls)) {
-    URL.revokeObjectURL(audioUrls[k])
-    delete audioUrls[k]
-  }
-}
-
-async function loadThumb(sha) {
-  if (thumbUrls[sha] || thumbState[sha] === 'loading') return
-  thumbState[sha] = 'loading'
-  try {
-    const res = await api.blobThumb(sha)
-    if (!res?.data || res.data.size === 0) {
-      thumbState[sha] = 'error'
-      return
-    }
-    thumbUrls[sha] = URL.createObjectURL(res.data)
-    delete thumbState[sha]
-  } catch {
-    thumbState[sha] = 'error'
-  }
-}
-
-async function loadAudio(sha) {
-  if (audioUrls[sha] || audioState[sha] === 'loading') return
-  audioState[sha] = 'loading'
-  try {
-    const res = await api.blobRaw(sha)
-    if (!res?.data || res.data.size === 0) {
-      audioState[sha] = 'error'
-      return
-    }
-    audioUrls[sha] = URL.createObjectURL(res.data)
-    delete audioState[sha]
-  } catch {
-    audioState[sha] = 'error'
-  }
-}
-
 async function load() {
   loading.value = true
   try {
-    revokeAll()
     const res = await api.listBlobs({ ...query })
     rows.value = res.items || []
     total.value = res.total || 0
-    // 预取图片缩略图（音频改为按需「试听」）
-    for (const row of rows.value) {
-      if (isImage(row)) loadThumb(row.sha256)
-    }
   } finally {
     loading.value = false
   }
@@ -171,7 +122,6 @@ async function hardDelete(row) {
 }
 
 onMounted(load)
-onUnmounted(revokeAll)
 </script>
 
 <template>
@@ -204,25 +154,26 @@ onUnmounted(revokeAll)
           <!-- 图片：缩略图 -->
           <template v-if="isImage(row)">
             <el-image
-              v-if="thumbUrls[row.sha256]"
-              :src="thumbUrls[row.sha256]"
+              v-if="row.thumbUrl && !thumbError[row.sha256]"
+              :src="row.thumbUrl"
               fit="contain"
               style="width: 64px; height: 64px; background: #f0f2f5; border-radius: 4px"
-              :preview-src-list="[thumbUrls[row.sha256]]"
+              :preview-src-list="[row.url]"
               hide-on-click-modal
               preview-teleported
+              @error="thumbError[row.sha256] = true"
             />
             <div v-else class="preview-ph">
               <el-icon><Picture /></el-icon>
-              <span>{{ thumbState[row.sha256] === 'loading' ? '加载中' : row.mediaType }}</span>
+              <span>{{ row.isBanned ? '文件已删' : row.mediaType }}</span>
             </div>
           </template>
           <!-- 音频：按需试听 -->
           <template v-else-if="isAudio(row)">
-            <audio v-if="audioUrls[row.sha256]" :src="audioUrls[row.sha256]" controls preload="none" style="width: 130px" />
-            <el-button v-else link type="primary" :loading="audioState[row.sha256] === 'loading'" @click="loadAudio(row.sha256)">
+            <audio v-if="audioOn[row.sha256]" :src="row.url" controls autoplay style="width: 130px" />
+            <el-button v-else link type="primary" :disabled="row.isBanned" @click="audioOn[row.sha256] = true">
               <el-icon style="margin-right: 4px"><Headset /></el-icon>
-              {{ audioState[row.sha256] === 'error' ? '无法试听' : '试听' }}
+              {{ row.isBanned ? '文件已删' : '试听' }}
             </el-button>
           </template>
           <div v-else class="preview-ph"><span>{{ row.mediaType || '-' }}</span></div>

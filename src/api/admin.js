@@ -47,8 +47,6 @@ export const api = {
   banBlob: (sha) => http.post(`/admin/blobs/${sha}/ban`),
   unbanBlob: (sha) => http.post(`/admin/blobs/${sha}/unban`),
   deleteBlob: (sha) => http.del(`/admin/blobs/${sha}`),
-  blobThumb: (sha) => http.getBlob(`/admin/blobs/${sha}/thumb`),
-  blobRaw: (sha) => http.getBlob(`/admin/blobs/${sha}/raw`),
 
   // 配置
   settings: () => http.get('/admin/settings'),

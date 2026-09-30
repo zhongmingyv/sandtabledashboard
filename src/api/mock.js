@@ -136,6 +136,9 @@ const blobs = Array.from({ length: 12 }, (_, i) => {
     layersJson: isAudio ? '[]' : blobLayerSets[i % blobLayerSets.length],
     ownerName: owner.displayName,
     isBanned: i === 4 || i === 9,
+    // mock 没有真文件：地址指向不存在的地方，视图走 @error 占位
+    url: `https://files.example.invalid/blobs/${fakeSha(i + 1).slice(0, 2)}/${fakeSha(i + 1)}${isAudio ? '.ogg' : '.png'}`,
+    thumbUrl: isAudio ? null : `https://files.example.invalid/blobs/${fakeSha(i + 1).slice(0, 2)}/${fakeSha(i + 1)}.thumb.png`,
   }
 })
 
@@ -356,7 +359,11 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
     const withCampaign = new Set(campaigns.filter((c) => c.gameId && !c.isDeleted).map((c) => c.gameId))
     return ok({
       chunkBytes: 16 * 1024 * 1024,
-      items: gameReleases.map((r) => ({ ...r, hasCampaign: withCampaign.has(r.gameId) })),
+      items: gameReleases.map((r) => ({
+        ...r,
+        hasCampaign: withCampaign.has(r.gameId),
+        url: r.archived ? null : `https://files.example.invalid/games/${r.gameId}/v${r.version}-${r.sha256.slice(0, 8)}.zip`,
+      })),
     })
   }
   let mpc = p.match(/^admin\/game-releases\/([^/]+)\/campaign$/)
@@ -444,11 +451,6 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
     if (!b) return fail(404, 'blob_not_found')
     b.isBanned = mr[2] === 'ban'
     return ok({ ok: true, isBanned: b.isBanned })
-  }
-  mr = p.match(/^admin\/blobs\/([^/]+)\/(thumb|raw)$/)
-  if (m === 'GET' && mr) {
-    // mock 无真实字节，返回空占位；视图侧走 error/placeholder 兜底
-    return ok(new Blob([], { type: 'application/octet-stream' }))
   }
   mr = p.match(/^admin\/blobs\/([^/]+)$/)
   if (m === 'DELETE' && mr) {
