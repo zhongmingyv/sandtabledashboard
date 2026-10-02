@@ -31,6 +31,23 @@ async function saveAll() {
   }
   for (const it of changed) {
     if (it.type === 'bool') continue // 开关项由 el-switch 产出 '0'/'1'，不吃「必须为正整数」这条
+    // 版本型:空 = 不限,否则 a.b.c;名单型:逗号分隔的版本(空 = 清空名单)
+    const isVersion = (v) => /^\d+(\.\d+){0,2}$/.test(v)
+    if (it.type === 'version') {
+      if (String(it.edit).trim() !== '' && !isVersion(String(it.edit).trim())) {
+        ElMessage.error(`「${it.label}」须为版本号（如 0.2.0），或留空表示不限`)
+        return
+      }
+      continue
+    }
+    if (it.type === 'versionList') {
+      const parts = String(it.edit).split(',').map((x) => x.trim()).filter((x) => x)
+      if (!parts.every(isVersion)) {
+        ElMessage.error(`「${it.label}」须为逗号分隔的版本号（如 0.1.3, 0.2.0）`)
+        return
+      }
+      continue
+    }
     if (!/^\d+$/.test(String(it.edit)) || Number(it.edit) <= 0) {
       ElMessage.error(`「${it.label}」必须为正整数`)
       return
@@ -68,7 +85,7 @@ onMounted(load)
     <el-card>
       <template #header>
         <div style="display: flex; justify-content: space-between; align-items: center">
-          <span>全局配额配置（运行时生效）</span>
+          <span>全局配置（运行时生效）</span>
           <div>
             <el-button @click="runGc">手动 GC 回收</el-button>
             <el-button type="primary" @click="saveAll">保存改动</el-button>
@@ -91,8 +108,8 @@ onMounted(load)
               v-model="row.edit"
               active-value="1"
               inactive-value="0"
-              active-text="自动"
-              inactive-text="人工"
+              :active-text="row.key === 'campaign.autoApprove' ? '自动' : '开'"
+              :inactive-text="row.key === 'campaign.autoApprove' ? '人工' : '关'"
             />
             <el-input v-else v-model="row.edit" size="small">
               <template v-if="row.unit" #append>{{ row.unit }}</template>

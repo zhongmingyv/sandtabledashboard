@@ -18,6 +18,8 @@ export const api = {
   setCampaignQuota: (id, count) => http.put(`/admin/users/${id}/campaign-quota`, { count }),
   setResourceQuota: (id, count) => http.put(`/admin/users/${id}/resource-quota`, { count }),
   setReviewer: (id, isReviewer) => http.put(`/admin/users/${id}/reviewer`, { isReviewer }),
+  // GM:Maker 联网模式里出现 GM 页签,下载被举报的对局、本机播一遍、提交结论
+  setGm: (id, isGm) => http.put(`/admin/users/${id}/gm`, { isGm }),
   setFeaturedMaker: (id, isFeaturedMaker) =>
     http.put(`/admin/users/${id}/featured-maker`, { isFeaturedMaker }),
 

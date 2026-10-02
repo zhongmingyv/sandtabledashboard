@@ -128,6 +128,24 @@ async function toggleReviewer(row) {
   ElMessage.success(granting ? '已授予' : '已收回')
 }
 
+async function toggleGm(row) {
+  const granting = !row.isGm
+  try {
+    await ElMessageBox.confirm(
+      granting
+        ? `把「${row.displayName}」设为 GM？该账号在 maker 联网模式里会看到「GM」页签：下载被举报的对局、在本机播一遍、提交结论（「属实」会给被举报人的查实次数 +1）。`
+        : `收回「${row.displayName}」的 GM 权限？`,
+      granting ? '授予 GM' : '收回 GM',
+      { type: 'warning' },
+    )
+  } catch {
+    return
+  }
+  await api.setGm(row.playerId, granting)
+  row.isGm = granting
+  ElMessage.success(granting ? '已授予' : '已收回')
+}
+
 async function toggleFeaturedMaker(row) {
   const granting = !row.isFeaturedMaker
   try {
@@ -171,6 +189,7 @@ onMounted(load)
           {{ row.displayName }}
           <el-tag v-if="row.isBanned" type="danger" size="small">已封禁</el-tag>
           <el-tag v-if="row.isReviewer" type="warning" size="small">官方试玩</el-tag>
+          <el-tag v-if="row.isGm" type="primary" size="small">GM</el-tag>
           <el-tag v-if="row.isFeaturedMaker" type="success" size="small">精品制作人</el-tag>
         </template>
       </el-table-column>
@@ -196,16 +215,24 @@ onMounted(load)
           <span v-else style="color: #909399">{{ fmtBytes(quotaDefaults.blobTotalBytes) }}(默认)</span>
         </template>
       </el-table-column>
+      <el-table-column prop="confirmedViolations" label="查实违规" width="100">
+        <template #default="{ row }">
+          <span :style="{ color: row.confirmedViolations > 0 ? '#f56c6c' : '#909399' }">{{ row.confirmedViolations || 0 }}</span>
+        </template>
+      </el-table-column>
       <el-table-column prop="createdAt" label="注册时间" width="150" sortable="custom">
         <template #default="{ row }">{{ fmtDate(row.createdAt) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="500" fixed="right">
+      <el-table-column label="操作" width="580" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="editCampaignQuota(row)">改战役上限</el-button>
           <el-button link type="primary" @click="editResourceQuota(row)">改资源上限</el-button>
           <el-button link type="primary" @click="editBlobQuota(row)">改图床上限</el-button>
           <el-button link type="warning" @click="toggleReviewer(row)">
             {{ row.isReviewer ? '取消试玩号' : '设为试玩号' }}
+          </el-button>
+          <el-button link type="primary" @click="toggleGm(row)">
+            {{ row.isGm ? '取消 GM' : '设为 GM' }}
           </el-button>
           <el-button link type="success" @click="toggleFeaturedMaker(row)">
             {{ row.isFeaturedMaker ? '取消精品制作人' : '设为精品制作人' }}
