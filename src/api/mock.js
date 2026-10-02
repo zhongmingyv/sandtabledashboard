@@ -19,7 +19,6 @@ const users = Array.from({ length: 42 }, (_, i) => ({
   createdAt: iso((42 - i) * 86400000 + rand(i) * 1e7),
   blobQuotaBytes: i % 5 === 0 ? 128 * 1024 * 1024 : 0,
   campaignQuota: i % 4 === 0 ? 5 : 0,
-  resourceQuota: i % 6 === 0 ? 20 : 0,
   isBanned: i % 11 === 3,
   isReviewer: i % 17 === 1,
   isFeaturedMaker: i % 7 === 2,
@@ -143,15 +142,16 @@ const blobs = Array.from({ length: 12 }, (_, i) => {
 })
 
 const settings = [
-  { key: 'campaign.quota', label: '战役上传数/人', value: '3', default: '3', unit: '个', type: 'int' },
-  { key: 'resource.quota', label: '资源上传数/人', value: '10', default: '10', unit: '个', type: 'int' },
-  { key: 'campaign.maxPackageBytes', label: '单战役包上限', value: String(25 * 1024 * 1024), default: String(25 * 1024 * 1024), unit: '字节', type: 'bytes' },
-  { key: 'resource.maxPackageBytes', label: '单资源包上限', value: String(25 * 1024 * 1024), default: String(25 * 1024 * 1024), unit: '字节', type: 'bytes' },
-  { key: 'blob.maxImageBytes', label: '单张图片上限', value: String(4 * 1024 * 1024), default: String(4 * 1024 * 1024), unit: '字节', type: 'bytes' },
-  { key: 'blob.maxAudioBytes', label: '单个音频上限', value: String(1024 * 1024), default: String(1024 * 1024), unit: '字节', type: 'bytes' },
-  { key: 'blob.quota.tier0.maxTotalBytes', label: '图床总量/人 Tier0', value: String(64 * 1024 * 1024), default: String(64 * 1024 * 1024), unit: '字节', type: 'bytes' },
-  { key: 'blob.quota.tier1.maxTotalBytes', label: '图床总量/人 Tier1', value: String(512 * 1024 * 1024), default: String(512 * 1024 * 1024), unit: '字节', type: 'bytes' },
-  { key: 'campaign.autoApprove', label: '战役自动收录', value: '1', default: '1', unit: '', type: 'bool' },
+  { key: 'campaign.quota', label: '每人能发几款游戏', value: '3', default: '3', unit: '款', type: 'int' },
+  { key: 'campaign.maxTotalBytes', label: '每款游戏总容量(所有保留版本合计,同一文件只算一次)', value: String(200 * 1024 * 1024), default: String(200 * 1024 * 1024), unit: '字节', type: 'bytes' },
+  { key: 'publish.perHour', label: '每人每小时发布次数(防刷)', value: '10', default: '10', unit: '次', type: 'int' },
+  { key: 'campaign.autoApprove', label: '新游戏 / 新版本直接上架(关 = 等官方审核)', value: '1', default: '1', unit: '', type: 'bool' },
+  { key: 'client.minMakerVersion', label: 'Maker 最低版本(空 = 不限)', value: '', default: '', unit: '', type: 'version' },
+  { key: 'client.minGameVersion', label: '游戏 exe 最低版本(空 = 不限)', value: '', default: '', unit: '', type: 'version' },
+  { key: 'client.problemVersions', label: '问题版本名单(逗号分隔;在座有人用它的桌不复核)', value: '', default: '', unit: '', type: 'versionList' },
+  { key: 'report.enabled', label: '收举报', value: '1', default: '1', unit: '', type: 'bool' },
+  { key: 'revision.tableReleaseDays', label: '旧版本几天后释放还没打完的桌', value: '21', default: '21', unit: '天', type: 'int' },
+  { key: 'revision.keepDays', label: '旧版本几天后删除(须大于上一项)', value: '30', default: '30', unit: '天', type: 'int' },
 ]
 
 const audit = Array.from({ length: 35 }, (_, i) => ({
@@ -227,7 +227,7 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
     rows = applySort(rows, params.sort || 'createdAt', params.order)
     return ok({
       ...paginate(rows, Number(params.page) || 1),
-      defaults: { campaignQuota: 3, resourceQuota: 10, blobTotalBytes: 64 * 1024 * 1024 },
+      defaults: { campaignQuota: 3, blobTotalBytes: 64 * 1024 * 1024 },
     })
   }
   let mu = p.match(/^admin\/users\/([^/]+)\/(ban|unban)$/)
@@ -250,13 +250,6 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
     if (!u) return fail(404, 'user_not_found')
     u.campaignQuota = Math.max(0, Number(data.count) || 0)
     return ok({ campaignQuota: u.campaignQuota })
-  }
-  mu = p.match(/^admin\/users\/([^/]+)\/resource-quota$/)
-  if (m === 'PUT' && mu) {
-    const u = users.find((x) => x.playerId === mu[1])
-    if (!u) return fail(404, 'user_not_found')
-    u.resourceQuota = Math.max(0, Number(data.count) || 0)
-    return ok({ resourceQuota: u.resourceQuota })
   }
   mu = p.match(/^admin\/users\/([^/]+)\/reviewer$/)
   if (m === 'PUT' && mu) {

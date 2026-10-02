@@ -53,9 +53,15 @@ async function saveAll() {
       return
     }
   }
+  // 旧版本先释放桌、再删包：前一个天数必须比后一个小（服务器也查一遍）
+  const days = (key) => Number((items.value.find((x) => x.key === key) || {}).edit)
+  if (days('revision.tableReleaseDays') >= days('revision.keepDays')) {
+    ElMessage.error('「旧版本几天后释放还没打完的桌」必须小于「旧版本几天后删除」')
+    return
+  }
   try {
     await ElMessageBox.confirm(
-      `确认保存 ${changed.length} 项改动？运行时立即生效。调大包上限时注意后端请求体上限也要相应放开。`,
+      `确认保存 ${changed.length} 项改动？运行时立即生效。`,
       '保存配置',
       { type: 'warning' },
     )

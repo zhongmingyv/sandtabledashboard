@@ -8,7 +8,7 @@ import { PAGE_SIZE } from '../config'
 const loading = ref(false)
 const rows = ref([])
 const total = ref(0)
-const quotaDefaults = ref({ campaignQuota: 0, resourceQuota: 0, blobTotalBytes: 0 })
+const quotaDefaults = ref({ campaignQuota: 0, blobTotalBytes: 0 })
 const query = reactive({ q: '', sort: 'createdAt', order: 'desc', page: 1 })
 
 async function load() {
@@ -92,24 +92,6 @@ async function editCampaignQuota(row) {
   }
 }
 
-async function editResourceQuota(row) {
-  try {
-    const { value } = await ElMessageBox.prompt(
-      '设置该用户资源数上限（0 = 用统一默认）',
-      `修改「${row.displayName}」资源上限`,
-      {
-        inputValue: String(row.resourceQuota || 0),
-        inputPattern: /^\d+$/,
-        inputErrorMessage: '请输入非负整数',
-      },
-    )
-    const res = await api.setResourceQuota(row.playerId, Number(value))
-    row.resourceQuota = res.resourceQuota
-    ElMessage.success('已更新资源上限')
-  } catch {
-    /* 取消 */
-  }
-}
 async function toggleReviewer(row) {
   const granting = !row.isReviewer
   try {
@@ -201,13 +183,7 @@ onMounted(load)
           <span v-else style="color: #909399">{{ quotaDefaults.campaignQuota }}(默认)</span>
         </template>
       </el-table-column>
-      <el-table-column prop="resourceCount" label="资源 占用/上限" width="130" sortable="custom">
-        <template #default="{ row }">
-          {{ row.resourceCount }} /
-          <template v-if="row.resourceQuota > 0">{{ row.resourceQuota }}</template>
-          <span v-else style="color: #909399">{{ quotaDefaults.resourceQuota }}(默认)</span>
-        </template>
-      </el-table-column>
+      <el-table-column prop="resourceCount" label="商城资源" width="100" sortable="custom" />
       <el-table-column prop="blobStorageBytes" label="图床 占用/上限" width="180" sortable="custom">
         <template #default="{ row }">
           {{ fmtBytes(row.blobStorageBytes) }} /
@@ -223,10 +199,9 @@ onMounted(load)
       <el-table-column prop="createdAt" label="注册时间" width="150" sortable="custom">
         <template #default="{ row }">{{ fmtDate(row.createdAt) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="580" fixed="right">
+      <el-table-column label="操作" width="500" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="editCampaignQuota(row)">改战役上限</el-button>
-          <el-button link type="primary" @click="editResourceQuota(row)">改资源上限</el-button>
           <el-button link type="primary" @click="editBlobQuota(row)">改图床上限</el-button>
           <el-button link type="warning" @click="toggleReviewer(row)">
             {{ row.isReviewer ? '取消试玩号' : '设为试玩号' }}
