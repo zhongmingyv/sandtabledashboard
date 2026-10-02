@@ -59,6 +59,15 @@ async function saveAll() {
     ElMessage.error('「旧版本几天后释放还没打完的桌」必须小于「旧版本几天后删除」')
     return
   }
+  if (days('table.botWorkMultiple') > days('table.maxBotWorkMultiple')) {
+    ElMessage.error('「开桌默认 bot 倍数」不能大于「bot 倍数上限」')
+    return
+  }
+  const minutes = ['table.idleMinutes', 'table.offlineMinutes']
+  if (minutes.some((k) => days(k) < 1 || days(k) > 60)) {
+    ElMessage.error('开桌默认的两个时限要在 1 到 60 分钟之间')
+    return
+  }
   try {
     await ElMessageBox.confirm(
       `确认保存 ${changed.length} 项改动？运行时立即生效。`,

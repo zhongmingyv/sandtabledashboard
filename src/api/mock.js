@@ -152,6 +152,10 @@ const settings = [
   { key: 'report.enabled', label: '收举报', value: '1', default: '1', unit: '', type: 'bool' },
   { key: 'revision.tableReleaseDays', label: '旧版本几天后释放还没打完的桌', value: '21', default: '21', unit: '天', type: 'int' },
   { key: 'revision.keepDays', label: '旧版本几天后删除(须大于上一项)', value: '30', default: '30', unit: '天', type: 'int' },
+  { key: 'table.idleMinutes', label: '开桌默认:多久没操作转 AI 托管(1~60)', value: '5', default: '5', unit: '分钟', type: 'int' },
+  { key: 'table.offlineMinutes', label: '开桌默认:多久不在算掉线、对手可替下(1~60)', value: '3', default: '3', unit: '分钟', type: 'int' },
+  { key: 'table.botWorkMultiple', label: '开桌默认:bot 每手最多算默认 BOT 的几倍', value: '5', default: '5', unit: '倍', type: 'int' },
+  { key: 'table.maxBotWorkMultiple', label: 'bot 倍数上限(房主最多能选到几倍,不小于上一项)', value: '10', default: '10', unit: '倍', type: 'int' },
 ]
 
 const audit = Array.from({ length: 35 }, (_, i) => ({
