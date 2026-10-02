@@ -68,6 +68,11 @@ export const api = {
   uploadGamePackage,
   setMakerVisible,
 
+  // Maker 版本（编辑器自己的安装包，Maker 启动查新 / 强制升级）
+  makerReleases: () => http.get('/admin/maker-releases'),
+  withdrawMakerRelease: (version) => http.del(`/admin/maker-releases/${version}`),
+  uploadMakerExe,
+
   // 战役审核（ADR-0014 §9）：按版本审。放行 / 驳回针对战役当前那一版待审版
   reviewRevisions: (params) => http.get('/admin/review/revisions', params),
   reviewRevision: (id) => http.get(`/admin/review/revisions/${id}`),
@@ -77,12 +82,12 @@ export const api = {
 }
 
 /** 等后台任务做完：每 2 秒问一次，onStage(阶段说明) 给界面显示，做完返回结果。 */
-async function waitJob(first, jobId, onStage) {
+async function waitJob(first, jobId, onStage, prefix = '/admin/game-releases/uploads') {
   let res = first
   while (res?.status === 'processing') {
     onStage?.(res.stage)
     await new Promise((r) => setTimeout(r, 2000))
-    res = await http.get(`/admin/game-releases/uploads/${jobId}`)
+    res = await http.get(`${prefix}/${jobId}`)
   }
   return res
 }
@@ -108,13 +113,33 @@ async function setMakerVisible(gameId, makerVisible, onStage) {
  * 不能让 complete 请求一直挂着等：前端 15 秒超时、Cloudflare 代理 100 秒超时都会先断。
  */
 async function uploadGamePackage(file, makerVisible, onProgress, onStage) {
-  const { uploadId, chunkBytes } = await http.post('/admin/game-releases/uploads')
+  const prefix = '/admin/game-releases/uploads'
+  const uploadId = await uploadChunks(prefix, file, onProgress)
+  // makerVisible：「Maker 也能联机」，服务器要求每次明说（ADR-0014 §7）
+  const res = await http.post(`${prefix}/${uploadId}/complete`, undefined, { makerVisible })
+  return waitJob(res, uploadId, onStage, prefix)
+}
+
+/**
+ * 分片上传 Maker 的 exe 并登记（同上，几百 MB）。版本号不用填：服务器从 exe 的文件版本读。
+ * forced：登记成功后把「Maker 最低版本」设成这一版，低于它的 Maker 一打开就得先更新。
+ */
+async function uploadMakerExe(file, forced, onProgress, onStage) {
+  const prefix = '/admin/maker-releases/uploads'
+  const uploadId = await uploadChunks(prefix, file, onProgress)
+  const res = await http.post(`${prefix}/${uploadId}/complete`, undefined, { forced })
+  return waitJob(res, uploadId, onStage, prefix)
+}
+
+/** 开一个分片上传、逐片 PUT 完，返回上传 id。 */
+async function uploadChunks(prefix, file, onProgress) {
+  const { uploadId, chunkBytes } = await http.post(prefix)
   let offset = 0
   while (offset < file.size) {
     const end = Math.min(offset + chunkBytes, file.size)
     try {
       const res = await http.putBinary(
-        `/admin/game-releases/uploads/${uploadId}`,
+        `${prefix}/${uploadId}`,
         file.slice(offset, end),
         { offset },
         (loaded) => onProgress?.(offset + loaded, file.size),
@@ -127,7 +152,5 @@ async function uploadGamePackage(file, makerVisible, onProgress, onStage) {
     }
     onProgress?.(offset, file.size)
   }
-  // makerVisible：「Maker 也能联机」，服务器要求每次明说（ADR-0014 §7）
-  const res = await http.post(`/admin/game-releases/uploads/${uploadId}/complete`, undefined, { makerVisible })
-  return waitJob(res, uploadId, onStage)
+  return uploadId
 }

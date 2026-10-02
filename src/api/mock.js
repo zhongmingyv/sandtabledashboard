@@ -351,6 +351,18 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
     return ok({ itemId: mw[1], banned: false })
   }
 
+  // Maker 版本（只读演示：上传 / 撤下要真服务器）
+  if (m === 'GET' && p === 'admin/maker-releases') {
+    return ok({
+      chunkBytes: 16 * 1024 * 1024,
+      minVersion: 0,
+      items: [
+        { version: 2, size: 393377976, sha256: 'ab'.repeat(32), createdAt: '2026-10-02T08:00:00Z', downloadCount: 1, archived: false, url: 'https://files.example.invalid/maker/v2-abababab.exe' },
+        { version: 1, size: 390000000, sha256: 'cd'.repeat(32), createdAt: '2026-09-30T08:00:00Z', downloadCount: 2, archived: true, url: null },
+      ],
+    })
+  }
+
   // 游戏版本
   if (m === 'GET' && p === 'admin/game-releases') {
     const withCampaign = new Set(campaigns.filter((c) => c.gameId && !c.isDeleted).map((c) => c.gameId))

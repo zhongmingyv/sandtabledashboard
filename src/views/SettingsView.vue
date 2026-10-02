@@ -31,11 +31,11 @@ async function saveAll() {
   }
   for (const it of changed) {
     if (it.type === 'bool') continue // 开关项由 el-switch 产出 '0'/'1'，不吃「必须为正整数」这条
-    // 版本型:空 = 不限,否则 a.b.c;名单型:逗号分隔的版本(空 = 清空名单)
-    const isVersion = (v) => /^\d+(\.\d+){0,2}$/.test(v)
+    // 版本型:空 = 不限,否则是整数版本号(Maker 每发一版 +1);名单型:逗号分隔的版本号(空 = 清空名单)
+    const isVersion = (v) => /^[1-9]\d*$/.test(v)
     if (it.type === 'version') {
       if (String(it.edit).trim() !== '' && !isVersion(String(it.edit).trim())) {
-        ElMessage.error(`「${it.label}」须为版本号（如 0.2.0），或留空表示不限`)
+        ElMessage.error(`「${it.label}」须为版本号（正整数，如 12），或留空表示不限`)
         return
       }
       continue
@@ -43,7 +43,7 @@ async function saveAll() {
     if (it.type === 'versionList') {
       const parts = String(it.edit).split(',').map((x) => x.trim()).filter((x) => x)
       if (!parts.every(isVersion)) {
-        ElMessage.error(`「${it.label}」须为逗号分隔的版本号（如 0.1.3, 0.2.0）`)
+        ElMessage.error(`「${it.label}」须为逗号分隔的版本号（如 11, 12）`)
         return
       }
       continue
