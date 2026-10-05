@@ -62,11 +62,9 @@ export const api = {
   gameReleases: () => http.get('/admin/game-releases'),
   deleteGameRelease: (gameId, version) => http.del(`/admin/game-releases/${gameId}/${version}`),
   // 拿这个游戏当前那一版整包补建「战役管理」那一条（整包登记早于战役同步的老版本才需要）。
-  // makerVisible 必填（ADR-0014 §7）：true = Maker 也能联机；false = 只给导出的游戏
-  publishGameCampaign: (gameId, makerVisible) =>
-    http.post(`/admin/game-releases/${gameId}/campaign`, undefined, { makerVisible }),
+  // 官方整包一律 Maker 不可见，拆出的战役包只给 GM 审举报用（ADR-0014 §7，2026-10-05 修订）
+  publishGameCampaign: (gameId) => http.post(`/admin/game-releases/${gameId}/campaign`),
   uploadGamePackage,
-  setMakerVisible,
 
   // Maker 版本（编辑器自己的安装包，Maker 启动查新 / 强制升级）
   makerReleases: () => http.get('/admin/maker-releases'),
@@ -93,30 +91,21 @@ async function waitJob(first, jobId, onStage, prefix = '/admin/game-releases/upl
 }
 
 /**
- * 事后改「Maker 也能联机」。关：立刻完成。开：服务器要拿最新整包拆出战役包与素材再传，在后台做，这里轮询到做完。
- */
-async function setMakerVisible(gameId, makerVisible, onStage) {
-  const res = await http.put(`/admin/game-releases/${gameId}/maker-visible`, { makerVisible })
-  return res?.status === 'processing' ? waitJob(res, res.jobId, onStage) : res
-}
-
-/**
  * 分片上传一个游戏整包并登记。官方站在 Cloudflare 后面，单个请求体超过 100MB 会被边缘直接 413，
  * 而一个导出游戏光 exe 就一百多 MB，所以按服务器给的片大小（16MB）逐片 PUT。
  * 某一片撞上 409（服务器已收字节数与本地不一致，比如上一片其实已经落盘、只是应答丢了），
  * 按服务器报的字节数续传，不从头来。
  * onProgress(已发字节, 总字节)。版本号不用填：服务器从包里的 data/server.json 读。
- * makerVisible：是 = Maker 玩家也能开桌加入（服务器把 data/ 拆成战役包 + 素材传上去）；否 = 只有导出的游戏能联机。
+ * 官方整包与 Maker 彻底分开：Maker 看不到这个游戏；服务器照样把 data/ 拆成战役包 + 素材传上去，只给 GM 审举报用。
  *
  * 传完之后服务器在后台登记（解包、打战役包、把整包传上 R2，要几十秒到几分钟）：complete 立刻回
  * { status: 'processing', stage }，这里每 2 秒问一次进度，onStage(阶段说明) 给界面显示，做完返回登记结果。
  * 不能让 complete 请求一直挂着等：前端 15 秒超时、Cloudflare 代理 100 秒超时都会先断。
  */
-async function uploadGamePackage(file, makerVisible, onProgress, onStage) {
+async function uploadGamePackage(file, onProgress, onStage) {
   const prefix = '/admin/game-releases/uploads'
   const uploadId = await uploadChunks(prefix, file, onProgress)
-  // makerVisible：「Maker 也能联机」，服务器要求每次明说（ADR-0014 §7）
-  const res = await http.post(`${prefix}/${uploadId}/complete`, undefined, { makerVisible })
+  const res = await http.post(`${prefix}/${uploadId}/complete`)
   return waitJob(res, uploadId, onStage, prefix)
 }
 
