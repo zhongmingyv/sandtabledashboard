@@ -77,6 +77,11 @@ export const api = {
   approveCampaign: (id) => http.post(`/admin/review/campaigns/${id}/approve`),
   rejectCampaign: (id, reason, block = false) => http.post(`/admin/review/campaigns/${id}/reject`, { reason, block }),
   banCampaignAsset: (sha) => http.post(`/admin/campaign-assets/${sha}/ban`),
+
+  // 资源库审核（ADR-0016）：作者发布战役时勾选分享的素材，每条分享各审各的；封禁素材走上面的 banCampaignAsset
+  library: (params) => http.get('/admin/library', params),
+  approveLibrary: (id) => http.post(`/admin/library/${id}/approve`),
+  rejectLibrary: (id, reason) => http.post(`/admin/library/${id}/reject`, { reason }),
 }
 
 /** 等后台任务做完：每 2 秒问一次，onStage(阶段说明) 给界面显示，做完返回结果。 */

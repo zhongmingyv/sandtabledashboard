@@ -183,7 +183,7 @@ onMounted(load)
           <span v-else style="color: #909399">{{ quotaDefaults.campaignQuota }}(默认)</span>
         </template>
       </el-table-column>
-      <el-table-column prop="resourceCount" label="商城资源" width="100" sortable="custom" />
+      <el-table-column prop="sharedAssetCount" label="资源库分享" width="100" />
       <el-table-column prop="blobStorageBytes" label="图床 占用/上限" width="180" sortable="custom">
         <template #default="{ row }">
           {{ fmtBytes(row.blobStorageBytes) }} /

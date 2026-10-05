@@ -23,7 +23,7 @@ const users = Array.from({ length: 42 }, (_, i) => ({
   isReviewer: i % 17 === 1,
   isFeaturedMaker: i % 7 === 2,
   campaignCount: Math.floor(rand(i + 2) * 4),
-  resourceCount: Math.floor(rand(i + 3) * 10),
+  sharedAssetCount: Math.floor(rand(i + 3) * 10),
   blobStorageBytes: Math.floor(rand(i + 4) * 64 * 1024 * 1024),
 }))
 
@@ -89,20 +89,31 @@ const matches = Array.from({ length: 6 }, (_, i) => {
 })
 
 const layers = ['background', 'height', 'terrain', 'edge', 'road', 'object', 'ui']
-const resources = Array.from({ length: 50 }, (_, i) => {
+// 资源库（ADR-0016）：发布战役时勾选分享的素材，每条分享一行
+const libraryKinds = ['image', 'image', 'sound', 'music', 'video']
+const library = Array.from({ length: 36 }, (_, i) => {
   const owner = users[(i + 3) % users.length]
+  const kind = libraryKinds[i % libraryKinds.length]
   return {
-    id: 'r' + String(i + 1).padStart(4, '0'),
+    id: 's' + String(i + 1).padStart(4, '0'),
+    sha256: String(i).padStart(64, 'a'),
+    name: `素材${i + 1}.${kind === 'image' ? 'png' : kind === 'video' ? 'ogv' : 'ogg'}`,
+    kind,
+    ext: kind === 'image' ? '.png' : kind === 'video' ? '.ogv' : '.ogg',
+    size: Math.floor((0.05 + rand(i + 9) * 4) * 1024 * 1024),
+    width: kind === 'image' ? 64 : 0,
+    height: kind === 'image' ? 64 : 0,
+    usages: kind === 'image' ? [{ layer: layers[i % layers.length], mode: i % 3 === 0 ? 'random' : '', ui: '' }] : [{ layer: 'effect', mode: '', ui: '' }],
+    hasGrid: i % 4 === 0,
     ownerPlayerId: owner.playerId,
     ownerName: owner.displayName,
-    title: `资源·${layers[i % layers.length]}${i + 1}`,
-    layerType: layers[i % layers.length],
-    tagsJson: JSON.stringify(['tag' + (i % 5)]),
-    createdAt: iso((50 - i) * 43200000),
-    downloadCount: Math.floor(rand(i + 8) * 500),
-    isDeleted: i % 8 === 2,
-    isBanned: i % 15 === 6,
-    sizeBytes: Math.floor((0.2 + rand(i + 9) * 20) * 1024 * 1024),
+    createdAt: iso((36 - i) * 43200000),
+    downloadCount: Math.floor(rand(i + 8) * 200),
+    status: ['pending', 'approved', 'rejected'][i % 3],
+    rejectReason: i % 3 === 2 ? '画面不合适' : '',
+    sameShaApproved: i % 6 === 0,
+    url: '',
+    thumbUrl: '',
   }
 })
 
@@ -220,8 +231,8 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
       userCount: users.length,
       bannedUserCount: users.filter((u) => u.isBanned).length,
       campaignCount: campaigns.filter((c) => !c.isDeleted).length,
-      resourceCount: resources.filter((r) => !r.isDeleted).length,
-      diskBytes: [...campaigns, ...resources].reduce((s, x) => s + x.sizeBytes, 0),
+      sharedAssetCount: library.filter((x) => x.status === 'approved').length,
+      diskBytes: campaigns.reduce((s, x) => s + x.sizeBytes, 0),
     })
   }
 
@@ -433,6 +444,24 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
     if (i < 0) return fail(404, 'game_release_not_found')
     gameReleases.splice(i, 1)
     return ok({ ok: true })
+  }
+
+  // 资源库审核
+  if (m === 'GET' && p === 'admin/library') {
+    const rows = library.filter((x) =>
+      (!params.status || params.status === 'all' ? true : x.status === (params.status || 'pending')) &&
+      (!params.kind || x.kind === params.kind) &&
+      (!params.layer || x.usages.some((u) => u.layer === params.layer)) &&
+      contains(x.name, params.q))
+    return ok(paginate(rows, Number(params.page) || 1))
+  }
+  const ml = p.match(/^admin\/library\/([^/]+)\/(approve|reject)$/)
+  if (m === 'POST' && ml) {
+    const x = library.find((r) => r.id === ml[1])
+    if (!x) return fail(404, 'shared_asset_not_found')
+    x.status = ml[2] === 'approve' ? 'approved' : 'rejected'
+    x.rejectReason = ml[2] === 'reject' ? data?.reason || '' : ''
+    return ok({ id: x.id, status: x.status, rejectReason: x.rejectReason })
   }
 
   // 图床（内容寻址 blob store）

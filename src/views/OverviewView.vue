@@ -15,7 +15,7 @@ async function load() {
     cards.value = [
       { label: '注册用户', value: data.value.userCount, sub: `封禁 ${data.value.bannedUserCount}` },
       { label: '战役（活）', value: data.value.campaignCount },
-      { label: '资源（活）', value: data.value.resourceCount },
+      { label: '资源库（已上架）', value: data.value.sharedAssetCount },
       { label: '磁盘占用（估）', value: fmtBytes(data.value.diskBytes) },
     ]
   } finally {

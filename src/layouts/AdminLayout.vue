@@ -16,6 +16,7 @@ const menus = [
   { name: 'users', title: '用户管理', icon: 'User' },
   { name: 'campaigns', title: '战役管理', icon: 'Files' },
   { name: 'review', title: '战役审核', icon: 'Checked' },
+  { name: 'library', title: '资源库审核', icon: 'Collection' },
   { name: 'rooms', title: '房间', icon: 'Connection' },
   { name: 'workshop', title: '创意工坊', icon: 'Shop' },
   { name: 'game-releases', title: '游戏版本', icon: 'Upload' },
