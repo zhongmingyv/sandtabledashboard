@@ -176,6 +176,16 @@ onMounted(load)
         </template>
       </el-table-column>
       <el-table-column prop="email" label="邮箱" min-width="180" />
+      <!-- Maker 使用权：上次复查的结果（每次打开 Maker 复查一次）。只读，开通靠 Steam 购买或发激活码 -->
+      <el-table-column label="Maker 授权" width="150">
+        <template #default="{ row }">
+          <el-tag v-if="row.makerSteamOwned" type="success" size="small">Steam 已购</el-tag>
+          <el-tooltip v-if="row.makerCode" :content="`到期 ${fmtDate(row.makerCodeExpiresAt)}`">
+            <el-tag type="warning" size="small">{{ row.makerCode }}</el-tag>
+          </el-tooltip>
+          <span v-if="!row.makerSteamOwned && !row.makerCode" style="color: #909399">无</span>
+        </template>
+      </el-table-column>
       <el-table-column prop="campaignCount" label="战役 占用/上限" width="130" sortable="custom">
         <template #default="{ row }">
           {{ row.campaignCount }} /

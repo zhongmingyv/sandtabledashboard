@@ -71,6 +71,12 @@ export const api = {
   withdrawMakerRelease: (version) => http.del(`/admin/maker-releases/${version}`),
   uploadMakerExe,
 
+  // Steam 应用：这台服务器认哪几个 Steam 应用（Maker 本体 + 官方游戏），各用哪把发行商密钥验票、要不要先买。
+  // 密钥只写不读：列表只给末 4 位；保存时 webApiKey 留空 = 保留原来那把。
+  steamApps: () => http.get('/admin/steam-apps'),
+  saveSteamApp: (appId, body) => http.put(`/admin/steam-apps/${appId}`, body),
+  deleteSteamApp: (appId) => http.del(`/admin/steam-apps/${appId}`),
+
   // 战役审核（ADR-0014 §9）：按版本审。放行 / 驳回针对战役当前那一版待审版
   reviewRevisions: (params) => http.get('/admin/review/revisions', params),
   reviewRevision: (id) => http.get(`/admin/review/revisions/${id}`),

@@ -21,6 +21,7 @@ const menus = [
   { name: 'workshop', title: '创意工坊', icon: 'Shop' },
   { name: 'game-releases', title: '游戏版本', icon: 'Upload' },
   { name: 'maker-releases', title: 'Maker 版本', icon: 'Monitor' },
+  { name: 'steam-apps', title: 'Steam 应用', icon: 'Key' },
   { name: 'blobs', title: '图床管理', icon: 'Picture' },
   { name: 'settings', title: '全局配置', icon: 'Setting' },
   { name: 'audit', title: '操作审计', icon: 'Document' },

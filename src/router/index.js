@@ -15,6 +15,7 @@ const routes = [
       { path: 'review', name: 'review', component: () => import('../views/ReviewView.vue'), meta: { title: '战役审核' } },
       { path: 'library', name: 'library', component: () => import('../views/LibraryView.vue'), meta: { title: '资源库审核' } },
       { path: 'game-releases', name: 'game-releases', component: () => import('../views/GameReleasesView.vue'), meta: { title: '游戏版本' } },
+      { path: 'steam-apps', name: 'steam-apps', component: () => import('../views/SteamAppsView.vue'), meta: { title: 'Steam 应用' } },
       { path: 'maker-releases', name: 'maker-releases', component: () => import('../views/MakerReleasesView.vue'), meta: { title: 'Maker 版本' } },
       { path: 'blobs', name: 'blobs', component: () => import('../views/BlobsView.vue'), meta: { title: '图床管理' } },
       { path: 'settings', name: 'settings', component: () => import('../views/SettingsView.vue'), meta: { title: '全局配置' } },
