@@ -521,6 +521,10 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
     return ok(paginate(Array.from({ length: 12 }, (_, i) => ({ id: i + 1, email: 'demo@example.com', displayName: '演示用户', machineFingerprint: i % 3 === 0 ? '' : 'a'.repeat(64), clientVersion: i % 3 === 0 ? '' : '0.1.3', ipAddress: '127.0.0.1', lastSessionMinutes: i % 3 === 0 ? 0 : i * 37, lastActiveMinutes: i % 3 === 0 ? 0 : i * 10, createdAt: iso(-i * 3600000) })), Number(params.page) || 1))
   }
 
+  if (m === 'GET' && p === 'admin/license-orders') {
+    return ok({ items: Array.from({ length: 6 }, (_, i) => ({ orderId: `demo-order-${i + 1}`, appId: 'warsim-maker', email: `buyer${i + 1}@example.com`, licenseKey: `SAND-DEMO-${1000 + i}`, lang: i % 2 ? 'en' : 'zh', discountCode: i === 2 ? 'EARLY' : '', priceId: 'echoshorts-license_2', orderCreatedAt: iso(-i * 86400000), receivedAt: iso(-i * 86400000 + 60000), activatedBy: i % 3 === 0 ? null : { playerId: `p${i}`, displayName: '演示用户', email: 'demo@example.com' } })) })
+  }
+
   return fail(404, 'mock_route_not_found: ' + m + ' ' + p)
 }
 

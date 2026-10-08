@@ -77,6 +77,10 @@ export const api = {
   saveSteamApp: (appId, body) => http.put(`/admin/steam-apps/${appId}`, body),
   deleteSteamApp: (appId) => http.del(`/admin/steam-apps/${appId}`),
 
+  // 激活码订单：echoshorts.win 卖出的 Maker 激活码，激活码 worker 发完码推过来（POST /payments/notify）。
+  // activatedBy = 这枚码激活到了哪个账号（还没激活为 null）。
+  licenseOrders: (params) => http.get('/admin/license-orders', params),
+
   // 战役审核（ADR-0014 §9）：按版本审。放行 / 驳回针对战役当前那一版待审版
   reviewRevisions: (params) => http.get('/admin/review/revisions', params),
   reviewRevision: (id) => http.get(`/admin/review/revisions/${id}`),
