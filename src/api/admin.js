@@ -66,10 +66,11 @@ export const api = {
   publishGameCampaign: (gameId) => http.post(`/admin/game-releases/${gameId}/campaign`),
   uploadGamePackage,
 
-  // Maker 版本（编辑器自己的安装包，Maker 启动查新 / 强制升级）
-  makerReleases: () => http.get('/admin/maker-releases'),
-  withdrawMakerRelease: (version) => http.del(`/admin/maker-releases/${version}`),
-  uploadMakerExe,
+  // 官方发版的 exe：Maker 版本（root = /admin/maker-releases）与用户版服务器（/admin/lan-server-releases），
+  // 客户端启动查新 / 强制升级。两页同一套接口，只换 root
+  exeReleases: (root) => http.get(root),
+  withdrawExeRelease: (root, version) => http.del(`${root}/${version}`),
+  uploadExe,
 
   // Steam 应用：这台服务器认哪几个 Steam 应用（Maker 本体 + 官方游戏），各用哪把发行商密钥验票、要不要先买。
   // 密钥只写不读：列表只给末 4 位；保存时 webApiKey 留空 = 保留原来那把。
@@ -125,11 +126,11 @@ async function uploadGamePackage(file, onProgress, onStage) {
 }
 
 /**
- * 分片上传 Maker 的 exe 并登记（同上，几百 MB）。版本号不用填：服务器从 exe 的文件版本读。
- * forced：登记成功后把「Maker 最低版本」设成这一版，低于它的 Maker 一打开就得先更新。
+ * 分片上传官方发版的 exe（Maker / 用户版服务器）并登记（同上，几十到几百 MB）。版本号不用填：服务器从 exe 的文件版本读。
+ * forced：登记成功后把该产品的「最低版本」设成这一版，低于它的一打开就得先更新。
  */
-async function uploadMakerExe(file, forced, onProgress, onStage) {
-  const prefix = '/admin/maker-releases/uploads'
+async function uploadExe(root, file, forced, onProgress, onStage) {
+  const prefix = `${root}/uploads`
   const uploadId = await uploadChunks(prefix, file, onProgress)
   const res = await http.post(`${prefix}/${uploadId}/complete`, undefined, { forced })
   return waitJob(res, uploadId, onStage, prefix)

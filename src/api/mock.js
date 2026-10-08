@@ -158,6 +158,7 @@ const settings = [
   { key: 'publish.perHour', label: '每人每小时发布次数(防刷)', value: '10', default: '10', unit: '次', type: 'int' },
   { key: 'campaign.autoApprove', label: '新游戏 / 新版本直接上架(关 = 等官方审核)', value: '1', default: '1', unit: '', type: 'bool' },
   { key: 'client.minMakerVersion', label: 'Maker 最低版本(空 = 不限)', value: '', default: '', unit: '', type: 'version' },
+  { key: 'client.minLanServerVersion', label: '用户版服务器最低版本(空 = 不限)', value: '', default: '', unit: '', type: 'version' },
   { key: 'client.minGameVersion', label: '游戏 exe 最低版本(空 = 不限)', value: '', default: '', unit: '', type: 'version' },
   { key: 'client.problemVersions', label: '问题版本名单(逗号分隔;在座有人用它的桌不复核)', value: '', default: '', unit: '', type: 'versionList' },
   { key: 'report.enabled', label: '收举报', value: '1', default: '1', unit: '', type: 'bool' },
@@ -360,6 +361,19 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
     if (i < 0) return fail(404, 'ban_not_found')
     workshopBans.splice(i, 1)
     return ok({ itemId: mw[1], banned: false })
+  }
+
+  // 用户版服务器（只读演示：上传 / 撤下要真服务器）
+  if (m === 'GET' && p === 'admin/lan-server-releases') {
+    return ok({
+      chunkBytes: 16 * 1024 * 1024,
+      minVersion: 0,
+      minVersionKey: 'client.minLanServerVersion',
+      items: [
+        { version: 3, size: 84057652, sha256: 'ef'.repeat(32), createdAt: '2026-10-08T08:00:00Z', downloadCount: 5, archived: false, url: 'https://files.example.invalid/lan-server/v3-efefefef.exe' },
+        { version: 2, size: 83900000, sha256: '12'.repeat(32), createdAt: '2026-10-01T08:00:00Z', downloadCount: 11, archived: true, url: null },
+      ],
+    })
   }
 
   // Maker 版本（只读演示：上传 / 撤下要真服务器）
