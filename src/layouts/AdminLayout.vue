@@ -35,6 +35,7 @@ const menus = [
     group: 'releases', title: '版本发布', icon: 'Upload',
     children: [
       { name: 'game-releases', title: '游戏版本', icon: 'Upload' },
+      { name: 'web-template', title: '网页版模板', icon: 'Platform' },
       { name: 'maker-releases', title: 'Maker 版本', icon: 'Monitor' },
       { name: 'lan-server-releases', title: '用户版服务器', icon: 'Cpu' },
     ],

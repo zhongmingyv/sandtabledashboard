@@ -64,6 +64,13 @@ const gameReleases = [
 ]
 const gameUploads = {}
 
+// 网页版模板：所有战役共用一份。mock 下没有真包可读，上传完成时换一个标识
+let webTemplate = {
+  dir: '3fa9c2d1', size: 147 * 1024 * 1024, fileCount: 9, createdAt: iso(86400000),
+  files: ['index.html', 'index.js', 'index.wasm', 'index.pck', 'index.png', 'index.icon.png'],
+}
+const webUploads = {}
+
 // 房间：没结束的对局桌。形状 = 玩家端对局详情 + lastOpAt / onlinePlayerIds
 const matches = Array.from({ length: 6 }, (_, i) => {
   const camp = campaigns[i % campaigns.length]
@@ -457,6 +464,37 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
     const i = gameReleases.findIndex((r) => r.gameId === mg[1] && r.version === Number(mg[2]))
     if (i < 0) return fail(404, 'game_release_not_found')
     gameReleases.splice(i, 1)
+    return ok({ ok: true })
+  }
+
+  // 网页版模板
+  if (m === 'GET' && p === 'admin/web-template') {
+    return ok({ chunkBytes: 16 * 1024 * 1024, current: webTemplate })
+  }
+  if (m === 'POST' && p === 'admin/web-template/uploads') {
+    const uploadId = Math.random().toString(16).slice(2).padEnd(32, '0').slice(0, 32)
+    webUploads[uploadId] = 0
+    return ok({ uploadId, chunkBytes: 16 * 1024 * 1024 })
+  }
+  let mwt = p.match(/^admin\/web-template\/uploads\/([^/]+)$/)
+  if (m === 'PUT' && mwt) {
+    if (!(mwt[1] in webUploads)) return fail(404, 'upload_not_found')
+    webUploads[mwt[1]] += data?.size || 0
+    return ok({ received: webUploads[mwt[1]] })
+  }
+  mwt = p.match(/^admin\/web-template\/uploads\/([^/]+)\/complete$/)
+  if (m === 'POST' && mwt) {
+    const size = webUploads[mwt[1]]
+    if (size === undefined) return fail(404, 'upload_not_found')
+    delete webUploads[mwt[1]]
+    webTemplate = { ...webTemplate, dir: Math.random().toString(16).slice(2, 10), size, createdAt: iso(0) }
+    return ok({ status: 'done', replaced: true, current: webTemplate })
+  }
+  const mwl = p.match(/^admin\/campaigns\/([^/]+)\/web-login-required$/)
+  if (m === 'PUT' && mwl) {
+    const c = campaigns.find((x) => x.id === mwl[1])
+    if (!c) return fail(404, 'campaign_not_found')
+    c.webLoginRequired = !!data?.loginRequired
     return ok({ ok: true })
   }
 

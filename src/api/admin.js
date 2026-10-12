@@ -31,6 +31,9 @@ export const api = {
   setCampaignFeatured: (id, isFeatured) =>
     http.put(`/admin/campaigns/${id}/featured`, { isFeatured }),
   setCampaignPinned: (id, isPinned) => http.put(`/admin/campaigns/${id}/pinned`, { isPinned }),
+  // 网页版：浏览器里玩这条战役要不要先登录（过审的战役都会出现在官网「在线游戏」页）
+  setCampaignWebLoginRequired: (id, loginRequired) =>
+    http.put(`/admin/campaigns/${id}/web-login-required`, { loginRequired }),
 
   // 房间（没结束的对局桌）
   matches: (params) => http.get('/admin/matches', params),
@@ -69,6 +72,11 @@ export const api = {
     return res?.jobId ? waitJob(res, res.jobId, onStage) : res
   },
   uploadGamePackage,
+
+  // 网页版模板：Maker 发版打的 web-template.zip（引擎 + 预编译代码），所有战役共用、只留最新一份。
+  // 游戏数据不在这里：网页版开局按战役编号去下 Maker「上传战役」传上来、审核通过的那一版
+  webTemplate: () => http.get('/admin/web-template'),
+  uploadWebTemplate,
 
   // 官方发版的 exe：Maker 版本（root = /admin/maker-releases）与用户版服务器（/admin/lan-server-releases），
   // 客户端启动查新 / 强制升级。两页同一套接口，只换 root
@@ -124,6 +132,14 @@ async function waitJob(first, jobId, onStage, prefix = '/admin/game-releases/upl
  */
 async function uploadGamePackage(file, onProgress, onStage) {
   const prefix = '/admin/game-releases/uploads'
+  const uploadId = await uploadChunks(prefix, file, onProgress)
+  const res = await http.post(`${prefix}/${uploadId}/complete`)
+  return waitJob(res, uploadId, onStage, prefix)
+}
+
+/** 分片上传网页版模板并登记（一百多 MB，服务器在后台拆成一个个文件传进存储）。 */
+async function uploadWebTemplate(file, onProgress, onStage) {
+  const prefix = '/admin/web-template/uploads'
   const uploadId = await uploadChunks(prefix, file, onProgress)
   const res = await http.post(`${prefix}/${uploadId}/complete`)
   return waitJob(res, uploadId, onStage, prefix)

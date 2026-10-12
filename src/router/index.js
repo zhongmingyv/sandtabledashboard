@@ -15,6 +15,7 @@ const routes = [
       { path: 'review', name: 'review', component: () => import('../views/ReviewView.vue'), meta: { title: '战役审核' } },
       { path: 'library', name: 'library', component: () => import('../views/LibraryView.vue'), meta: { title: '资源库审核' } },
       { path: 'game-releases', name: 'game-releases', component: () => import('../views/GameReleasesView.vue'), meta: { title: '游戏版本' } },
+      { path: 'web-template', name: 'web-template', component: () => import('../views/WebTemplateView.vue'), meta: { title: '网页版模板' } },
       { path: 'steam-apps', name: 'steam-apps', component: () => import('../views/SteamAppsView.vue'), meta: { title: 'Steam 应用' } },
       { path: 'license-orders', name: 'license-orders', component: () => import('../views/LicenseOrdersView.vue'), meta: { title: '激活码订单' } },
       { path: 'maker-releases', name: 'maker-releases', component: () => import('../views/ExeReleasesView.vue'), props: { product: 'maker' }, meta: { title: 'Maker 版本' } },

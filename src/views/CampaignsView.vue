@@ -86,6 +86,13 @@ async function togglePinned(row) {
   row.isPinned = on
   ElMessage.success(on ? '已置顶' : '已取消置顶')
 }
+
+// 网页版：过审的战役都能在官网「在线游戏」里玩，这里定要不要先登录
+async function setWebLogin(row, on) {
+  await api.setCampaignWebLoginRequired(row.id, on)
+  row.webLoginRequired = on
+  ElMessage.success(on ? '网页版改为要先登录' : '网页版不用登录')
+}
 onMounted(load)
 </script>
 
@@ -143,6 +150,12 @@ onMounted(load)
       <el-table-column prop="ownerName" label="上传者" width="120" />
       <el-table-column prop="era" label="年代" width="90" />
       <el-table-column prop="downloadCount" label="下载" width="90" sortable="custom" />
+      <el-table-column label="网页版要登录" width="110">
+        <template #default="{ row }">
+          <el-switch :model-value="row.webLoginRequired" @change="(v) => setWebLogin(row, v)" />
+          <div style="color: #909399; font-size: 12px">打开 {{ row.webPlayCount || 0 }} 次</div>
+        </template>
+      </el-table-column>
       <el-table-column prop="sizeBytes" label="包大小" width="110">
         <template #default="{ row }">{{ row.workshopItemId ? '—' : fmtBytes(row.sizeBytes) }}</template>
       </el-table-column>
