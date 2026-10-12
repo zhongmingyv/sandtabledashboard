@@ -524,7 +524,7 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
     return ok({ items: settings })
   }
   if (m === 'POST' && p === 'admin/blob-gc/run') {
-    return ok({ refsRemoved: 3, blobsDeleted: 5, filesDeleted: 5 })
+    return ok({ oldTablesReleased: 1, oldPackagesDeleted: 1, revisionsExpired: 2, campaignAssetsDeleted: 5 })
   }
 
   // 审计

@@ -85,12 +85,12 @@ async function saveAll() {
 
 async function runGc() {
   try {
-    await ElMessageBox.confirm('手动跑一轮 blob 回收（宽限期 0，立即回收孤儿）？', 'blob GC', { type: 'warning' })
+    await ElMessageBox.confirm('手动跑一轮回收：到期的旧版本释放旧桌、删旧包，没人用的战役素材删掉（宽限 1 小时）？', '回收', { type: 'warning' })
   } catch {
     return
   }
   const res = await api.runBlobGc()
-  ElMessage.success(`回收完成：删引用 ${res.refsRemoved}，删 blob ${res.blobsDeleted}，删文件 ${res.filesDeleted}`)
+  ElMessage.success(`回收完成：释放旧桌 ${res.oldTablesReleased}，删旧包 ${res.oldPackagesDeleted}，作废版本 ${res.revisionsExpired}，删素材 ${res.campaignAssetsDeleted}`)
 }
 onMounted(load)
 </script>

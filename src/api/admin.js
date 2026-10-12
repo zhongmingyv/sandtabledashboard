@@ -63,7 +63,11 @@ export const api = {
   deleteGameRelease: (gameId, version) => http.del(`/admin/game-releases/${gameId}/${version}`),
   // 拿这个游戏当前那一版整包补建「战役管理」那一条（整包登记早于战役同步的老版本才需要）。
   // 官方整包一律 Maker 不可见，拆出的战役包只给 GM 审举报用（ADR-0014 §7，2026-10-05 修订）
-  publishGameCampaign: (gameId) => http.post(`/admin/game-releases/${gameId}/campaign`),
+  // 后台任务：立刻回 { status: 'processing', jobId }，做完才有 { campaignId, created }
+  publishGameCampaign: async (gameId, onStage) => {
+    const res = await http.post(`/admin/game-releases/${gameId}/campaign`)
+    return res?.jobId ? waitJob(res, res.jobId, onStage) : res
+  },
   uploadGamePackage,
 
   // 官方发版的 exe：Maker 版本（root = /admin/maker-releases）与用户版服务器（/admin/lan-server-releases），
