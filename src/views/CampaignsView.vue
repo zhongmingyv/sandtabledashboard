@@ -13,7 +13,7 @@ const total = ref(0)
 const query = reactive({
   owner: route.query.owner || '',
   q: '',
-  status: 'all',
+  status: 'live', // 默认不列已删的（只剩墓碑）
   sort: 'createdAt',
   order: 'desc',
   page: 1,
@@ -102,9 +102,10 @@ onMounted(load)
       <el-input v-model="query.owner" placeholder="上传者 playerId" clearable style="width: 180px" @keyup.enter="search" @clear="search" />
       <el-input v-model="query.q" placeholder="战役名" clearable style="width: 200px" @keyup.enter="search" @clear="search" />
       <el-select v-model="query.status" style="width: 130px" @change="search">
-        <el-option label="全部" value="all" />
+        <el-option label="全部（不含已删）" value="live" />
+        <el-option label="全部（含已删）" value="all" />
         <el-option label="正常" value="active" />
-        <el-option label="作者已删" value="deleted" />
+        <el-option label="已删（墓碑）" value="deleted" />
         <el-option label="已封禁" value="banned" />
       </el-select>
       <el-button type="primary" @click="search">搜索</el-button>
@@ -119,7 +120,7 @@ onMounted(load)
           <el-tag v-if="row.isPinned" type="danger" size="small" effect="dark">置顶</el-tag>
           <el-tag v-if="row.isFeatured" type="success" size="small" effect="dark">精品</el-tag>
           <el-tag v-if="row.isBanned" type="danger" size="small">封禁</el-tag>
-          <el-tag v-if="row.isDeleted" type="info" size="small">作者删</el-tag>
+          <el-tag v-if="row.isDeleted" type="info" size="small">已删</el-tag>
           <el-tag v-if="row.approvalStatus === 'pending'" type="warning" size="small">待审核</el-tag>
           <el-tag
             v-else-if="row.approvalStatus === 'rejected'"
@@ -173,7 +174,11 @@ onMounted(load)
           <el-button link :type="row.isBanned ? 'success' : 'warning'" @click="toggleBan(row)">
             {{ row.isBanned ? '解封' : '封禁' }}
           </el-button>
-          <el-button link type="danger" @click="hardDelete(row)">硬删</el-button>
+          <!-- 已删的只剩一块墓碑：内容早清掉了，留着这一行是为了战役编号永远归原作者、别人不能拿它冒名上传，再删也无事可做 -->
+          <el-button v-if="!row.isDeleted" link type="danger" @click="hardDelete(row)">硬删</el-button>
+          <el-tooltip v-else content="内容已清掉，只留这一行保住战役编号（别人不能拿同一编号上传）；作者本人再传会原地复活" placement="top">
+            <span class="tomb-note">已删（留墓碑）</span>
+          </el-tooltip>
         </template>
       </el-table-column>
     </el-table>
@@ -183,3 +188,7 @@ onMounted(load)
     </div>
   </div>
 </template>
+
+<style scoped>
+.tomb-note { color: var(--el-text-color-secondary); font-size: 12px; cursor: help; }
+</style>

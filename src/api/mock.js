@@ -582,6 +582,8 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
 
 function statusMatch(x, status) {
   switch (status) {
+    case 'live':
+      return !x.isDeleted
     case 'active':
       return !x.isDeleted && !x.isBanned
     case 'deleted':
