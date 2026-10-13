@@ -65,6 +65,8 @@ export const api = {
 
   // 游戏版本（导出独立版的整包，玩家端启动查新 / 下载）
   gameReleases: () => http.get('/admin/game-releases'),
+  // 每版整包同步出来的 data.zip（战役包），按游戏、版本列
+  gameData: () => http.get('/admin/game-data'),
   deleteGameRelease: (gameId, version) => http.del(`/admin/game-releases/${gameId}/${version}`),
   // 拿这个游戏当前那一版整包补建「战役管理」那一条（整包登记早于战役同步的老版本才需要）。
   // 官方整包一律 Maker 不可见，拆出的战役包只给 GM 审举报用（ADR-0014 §7，2026-10-05 修订）

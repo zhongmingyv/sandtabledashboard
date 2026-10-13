@@ -58,6 +58,14 @@ const lastError = ref('')
 
 const latest = () => rows.value.find((r) => !r.archived) || null
 
+// 这一版的人打开时会怎样：低于最低版本 = 强制升级；最新那一版 = 最新；其余 = 可选升级（提示有新版，不拦）
+function upgradeOf(row) {
+  const top = latest()
+  if (top && row.version === top.version) return { text: '最新', type: 'success' }
+  if (minVersion.value && row.version < minVersion.value) return { text: '强制升级', type: 'danger' }
+  return { text: '可选升级', type: 'info' }
+}
+
 async function load() {
   loading.value = true
   try {
@@ -199,7 +207,7 @@ watch(
         <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap">
           <el-tag v-if="latest()" type="success">最新：第 {{ latest().version }} 版</el-tag>
           <el-tag v-else type="warning">暂无可下载的版本</el-tag>
-          <el-tag v-if="minVersion" type="danger">强制升级到第 {{ minVersion }} 版</el-tag>
+          <el-tag v-if="minVersion" type="danger">低于第 {{ minVersion }} 版的强制升级</el-tag>
           <el-tag v-else type="info">不强制</el-tag>
           <el-button
             v-if="latest() && minVersion !== latest().version"
@@ -229,6 +237,11 @@ watch(
             <el-tag v-if="row.archived" type="info" size="small">已清理</el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="这版的用户" width="110">
+          <template #default="{ row }">
+            <el-tag :type="upgradeOf(row).type" size="small">{{ upgradeOf(row).text }}</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="下载次数" width="110">
           <template #default="{ row }">{{ row.downloadCount || 0 }}</template>
         </el-table-column>
@@ -243,8 +256,15 @@ watch(
         <el-table-column label="上传时间" width="170">
           <template #default="{ row }">{{ fmtDate(row.createdAt) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="90" fixed="right">
+        <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
+            <el-tooltip
+              v-if="row.version !== minVersion"
+              :content="`设好后：低于第 ${row.version} 版的必须升级，第 ${row.version} 版及以上不强制`"
+              placement="top"
+            >
+              <el-button link type="warning" @click="setMinVersion(row.version)">设为最低版本</el-button>
+            </el-tooltip>
             <el-button v-if="!row.archived" link type="danger" @click="withdraw(row)">撤下</el-button>
           </template>
         </el-table-column>

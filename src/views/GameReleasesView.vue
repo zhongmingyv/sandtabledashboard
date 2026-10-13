@@ -101,7 +101,7 @@ async function publishCampaign(g) {
 async function remove(row) {
   try {
     await ElMessageBox.confirm(
-      `删除「${row.title}」第 ${row.version} 版？删的若是最新版，上一版会重新成为最新版。`,
+      `删除「${row.title}」第 ${row.version} 版？删的若是最新版，这个游戏暂时就没有可下载的版本（旧版文件早已清掉，不会退回上一版）。`,
       '删除版本',
       { type: 'warning' },
     )

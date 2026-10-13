@@ -380,6 +380,16 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
   }
 
   // 游戏版本
+  if (m === 'GET' && p === 'admin/game-data') {
+    const gid = 'camp_' + 'a'.repeat(32)
+    return ok({
+      keepDays: 30,
+      items: [
+        { gameId: gid, title: '赤壁', campaignId: 'c1', version: 2, md5: 'd'.repeat(32), size: 3 * 1024 * 1024, createdAt: iso(2 * 86400000), state: 'current', deleteAfter: '', url: 'https://files.example.invalid/campaigns/d.zip' },
+        { gameId: gid, title: '赤壁', campaignId: 'c1', version: 1, md5: 'e'.repeat(32), size: 3 * 1024 * 1024, createdAt: iso(9 * 86400000), state: 'retired', deleteAfter: iso(-28 * 86400000), url: 'https://files.example.invalid/campaigns/e.zip' },
+      ],
+    })
+  }
   if (m === 'GET' && p === 'admin/game-releases') {
     const withCampaign = new Set(campaigns.filter((c) => c.gameId && !c.isDeleted).map((c) => c.gameId))
     return ok({
