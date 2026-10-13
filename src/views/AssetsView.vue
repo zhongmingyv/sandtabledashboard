@@ -86,6 +86,23 @@ async function ban(row) {
   load()
 }
 
+async function unlist(row) {
+  let reason
+  try {
+    ;({ value: reason } = await ElMessageBox.prompt(
+      '从资源库下架：Maker 商店里不再看得到它，文件不删、用到它的战役照常。理由作者在「我的分享」里看得到（留空 = 运营下架）。',
+      '下架',
+      { inputPlaceholder: '运营下架', inputValidator: (v) => (v || '').length <= 500 || '最多 500 字', type: 'warning' },
+    ))
+  } catch {
+    return
+  }
+  const res = await api.unlistCampaignAsset(row.sha256, (reason || '').trim())
+  ElMessage.success(`已下架 ${res.unlisted} 条分享`)
+  drawer.value = false
+  load()
+}
+
 async function unban(row) {
   try {
     await ElMessageBox.confirm(
@@ -201,8 +218,9 @@ onMounted(load)
       <el-table-column prop="createdAt" label="上传时间" width="160" sortable="custom">
         <template #default="{ row }">{{ fmtDate(row.createdAt) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="100" fixed="right">
+      <el-table-column label="操作" width="120" fixed="right">
         <template #default="{ row }">
+          <el-button v-if="!row.isBanned && row.approvedShareCount" link type="warning" @click.stop="unlist(row)">下架</el-button>
           <el-button v-if="row.isBanned" link type="warning" @click.stop="unban(row)">解封</el-button>
           <el-button v-else link type="danger" @click.stop="ban(row)">封禁</el-button>
         </template>
@@ -234,6 +252,9 @@ onMounted(load)
           </el-descriptions>
 
           <div style="margin: 12px 0">
+            <el-button v-if="!detailRow.isBanned && detailRow.approvedShareCount" type="warning" @click="unlist(detailRow)">
+              从资源库下架
+            </el-button>
             <el-button v-if="detailRow.isBanned" type="warning" @click="unban(detailRow)">解封</el-button>
             <el-button v-else type="danger" @click="ban(detailRow)">封禁素材</el-button>
           </div>

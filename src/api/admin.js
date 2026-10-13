@@ -49,6 +49,8 @@ export const api = {
   campaignAssets: (params) => http.get('/admin/campaign-assets', params),
   campaignAsset: (sha) => http.get(`/admin/campaign-assets/${sha}`),
   unbanCampaignAsset: (sha) => http.post(`/admin/campaign-assets/${sha}/unban`),
+  // 从资源库下架：只撤分享、不碰文件
+  unlistCampaignAsset: (sha, reason = '') => http.post(`/admin/campaign-assets/${sha}/unlist`, { reason }),
 
   // 配置
   settings: () => http.get('/admin/settings'),

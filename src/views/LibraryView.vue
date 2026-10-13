@@ -62,16 +62,19 @@ async function approve(row) {
 }
 
 async function reject(row) {
+  const unlisting = row.status === 'approved'
   let reason
   try {
-    ;({ value: reason } = await ElMessageBox.prompt('驳回理由（作者在「我的分享」里看得到）', `驳回「${row.name}」`, {
+    ;({ value: reason } = await ElMessageBox.prompt(
+      unlisting ? '下架后 Maker 商店里不再看得到它（文件不删，用到它的战役照常）。理由作者在「我的分享」里看得到' : '驳回理由（作者在「我的分享」里看得到）',
+      `${unlisting ? '下架' : '驳回'}「${row.name}」`, {
       inputValidator: (v) => (v || '').length <= 500 || '最多 500 字',
     }))
   } catch {
     return
   }
-  await api.rejectLibrary(row.id, reason || '')
-  ElMessage.success(`已驳回：${row.name}`)
+  await api.rejectLibrary(row.id, reason || (unlisting ? '运营下架' : ''))
+  ElMessage.success(`已${unlisting ? '下架' : '驳回'}：${row.name}`)
   load()
 }
 
@@ -153,7 +156,7 @@ onMounted(load)
     <div class="batch-bar">
       <span>已选 {{ selected.length }} 条</span>
       <el-button type="success" size="small" :disabled="!selected.length" :loading="acting" @click="batch('approve')">批量放行</el-button>
-      <el-button type="warning" size="small" :disabled="!selected.length" :loading="acting" @click="batch('reject')">批量驳回</el-button>
+      <el-button type="warning" size="small" :disabled="!selected.length" :loading="acting" @click="batch('reject')">批量驳回 / 下架</el-button>
       <el-button type="danger" size="small" plain :disabled="!selected.length" :loading="acting" @click="batch('ban')">批量封禁素材</el-button>
     </div>
 
@@ -219,7 +222,9 @@ onMounted(load)
       <el-table-column label="操作" width="170" fixed="right">
         <template #default="{ row }">
           <el-button link type="success" :disabled="row.status === 'approved'" @click="approve(row)">放行</el-button>
-          <el-button link type="warning" :disabled="row.status === 'rejected'" @click="reject(row)">驳回</el-button>
+          <el-button link type="warning" :disabled="row.status === 'rejected'" @click="reject(row)">
+            {{ row.status === 'approved' ? '下架' : '驳回' }}
+          </el-button>
           <el-button link type="danger" @click="banAsset(row)">封禁素材</el-button>
         </template>
       </el-table-column>
@@ -228,7 +233,7 @@ onMounted(load)
     <div class="batch-bar">
       <span>已选 {{ selected.length }} 条</span>
       <el-button type="success" size="small" :disabled="!selected.length" :loading="acting" @click="batch('approve')">批量放行</el-button>
-      <el-button type="warning" size="small" :disabled="!selected.length" :loading="acting" @click="batch('reject')">批量驳回</el-button>
+      <el-button type="warning" size="small" :disabled="!selected.length" :loading="acting" @click="batch('reject')">批量驳回 / 下架</el-button>
       <el-button type="danger" size="small" plain :disabled="!selected.length" :loading="acting" @click="batch('ban')">批量封禁素材</el-button>
     </div>
 

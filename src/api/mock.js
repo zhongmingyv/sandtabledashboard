@@ -541,12 +541,17 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
       })),
     })
   }
-  ma = p.match(/^admin\/campaign-assets\/([0-9a-f]{64})\/(ban|unban)$/)
+  ma = p.match(/^admin\/campaign-assets\/([0-9a-f]{64})\/(ban|unban|unlist)$/)
   if (m === 'POST' && ma) {
     const i = campaignAssets.findIndex((r) => r.sha256 === ma[1])
     if (ma[2] === 'ban') {
       if (i >= 0) Object.assign(campaignAssets[i], { isBanned: true, url: null })
       return ok({ ok: true, sha256: ma[1], existed: i >= 0 })
+    }
+    if (ma[2] === 'unlist') {
+      const n = i >= 0 ? campaignAssets[i].approvedShareCount : 0
+      if (i >= 0) campaignAssets[i].approvedShareCount = 0
+      return ok({ ok: true, sha256: ma[1], unlisted: n })
     }
     if (i < 0 || !campaignAssets[i].isBanned) return fail(404, 'campaign_asset_not_banned')
     campaignAssets.splice(i, 1)
