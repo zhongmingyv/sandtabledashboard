@@ -28,7 +28,7 @@ const menus = [
       { name: 'review', title: '战役审核', icon: 'Checked' },
       { name: 'library', title: '资源库审核', icon: 'Collection' },
       { name: 'workshop', title: '创意工坊', icon: 'Shop' },
-      { name: 'blobs', title: '图床管理', icon: 'Picture' },
+      { name: 'assets', title: '素材管理', icon: 'Picture' },
     ],
   },
   {

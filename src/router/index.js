@@ -20,7 +20,8 @@ const routes = [
       { path: 'license-orders', name: 'license-orders', component: () => import('../views/LicenseOrdersView.vue'), meta: { title: '激活码订单' } },
       { path: 'maker-releases', name: 'maker-releases', component: () => import('../views/ExeReleasesView.vue'), props: { product: 'maker' }, meta: { title: 'Maker 版本' } },
       { path: 'lan-server-releases', name: 'lan-server-releases', component: () => import('../views/ExeReleasesView.vue'), props: { product: 'lanServer' }, meta: { title: '用户版服务器' } },
-      { path: 'blobs', name: 'blobs', component: () => import('../views/BlobsView.vue'), meta: { title: '图床管理' } },
+      { path: 'assets', name: 'assets', component: () => import('../views/AssetsView.vue'), meta: { title: '素材管理' } },
+      { path: 'blobs', redirect: { name: 'assets' } }, // 老图床管理页 2026-10-13 下掉，旧书签跳到素材管理
       { path: 'settings', name: 'settings', component: () => import('../views/SettingsView.vue'), meta: { title: '全局配置' } },
       { path: 'audit', name: 'audit', component: () => import('../views/AuditView.vue'), meta: { title: '操作审计' } },
       { path: 'login-logs', name: 'login-logs', component: () => import('../views/LoginLogsView.vue'), meta: { title: '登录日志' } },

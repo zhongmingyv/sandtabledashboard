@@ -8,10 +8,13 @@ import { PAGE_SIZE } from '../config'
 
 // 资源库审核（ADR-0016）：作者发布战役时勾选分享的素材，每条分享一行（同一张图可以被好几个人各分享一条）。
 // 放行 / 驳回只管这一条；「封禁素材」按文件内容封，所有指向它的分享一起下架、以后也不能再传。
+// 勾选后用表格上下两排的批量按钮一次处理（POST /admin/library/batch）。
 
 const loading = ref(false)
 const rows = ref([])
 const total = ref(0)
+const selected = ref([])
+const acting = ref(false)
 
 const query = reactive({ status: 'pending', kind: '', layer: '', q: '', page: 1 })
 
@@ -37,6 +40,7 @@ function usageText(u) {
 
 async function load() {
   loading.value = true
+  selected.value = []
   try {
     const res = await api.library({ ...query })
     rows.value = res.items || []
@@ -86,6 +90,40 @@ async function banAsset(row) {
   load()
 }
 
+async function batch(action) {
+  const picked = selected.value
+  if (!picked.length) return
+  const n = picked.length
+  let reason = ''
+  try {
+    if (action === 'approve') {
+      await ElMessageBox.confirm(`放行选中的 ${n} 条分享？放行后所有作者都能在资源库里搜到、下载。`, '批量放行', { type: 'success' })
+    } else if (action === 'reject') {
+      ;({ value: reason } = await ElMessageBox.prompt('驳回理由（作者在「我的分享」里看得到，这几条共用一个理由）', `批量驳回 ${n} 条`, {
+        inputValidator: (v) => (v || '').length <= 500 || '最多 500 字',
+      }))
+    } else {
+      await ElMessageBox.confirm(
+        `按文件内容封禁选中的 ${n} 条？文件立刻删除，资源库里所有指向这些文件的分享（包括别人的）一起下架，用到它们的战役里也会缺图 / 缺声，以后谁都不能再传同样的文件。`,
+        '批量封禁素材（违规内容）',
+        { type: 'error', confirmButtonText: '封禁', confirmButtonClass: 'el-button--danger' },
+      )
+    }
+  } catch {
+    return
+  }
+  acting.value = true
+  try {
+    const res = await api.batchLibrary(picked.map((r) => r.id), action, (reason || '').trim())
+    ElMessage.success(
+      action === 'ban' ? `已封禁 ${res.banned} 个文件` : `已${action === 'approve' ? '放行' : '驳回'} ${res.changed} 条`,
+    )
+    load()
+  } finally {
+    acting.value = false
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -112,7 +150,15 @@ onMounted(load)
       <span style="color: #909399">共 {{ total }} 条</span>
     </div>
 
-    <el-table :data="rows" v-loading="loading" border>
+    <div class="batch-bar">
+      <span>已选 {{ selected.length }} 条</span>
+      <el-button type="success" size="small" :disabled="!selected.length" :loading="acting" @click="batch('approve')">批量放行</el-button>
+      <el-button type="warning" size="small" :disabled="!selected.length" :loading="acting" @click="batch('reject')">批量驳回</el-button>
+      <el-button type="danger" size="small" plain :disabled="!selected.length" :loading="acting" @click="batch('ban')">批量封禁素材</el-button>
+    </div>
+
+    <el-table :data="rows" v-loading="loading" border row-key="id" @selection-change="(v) => (selected = v)">
+      <el-table-column type="selection" width="44" />
       <el-table-column label="预览" width="150">
         <template #default="{ row }">
           <template v-if="row.kind === 'image'">
@@ -179,6 +225,13 @@ onMounted(load)
       </el-table-column>
     </el-table>
 
+    <div class="batch-bar">
+      <span>已选 {{ selected.length }} 条</span>
+      <el-button type="success" size="small" :disabled="!selected.length" :loading="acting" @click="batch('approve')">批量放行</el-button>
+      <el-button type="warning" size="small" :disabled="!selected.length" :loading="acting" @click="batch('reject')">批量驳回</el-button>
+      <el-button type="danger" size="small" plain :disabled="!selected.length" :loading="acting" @click="batch('ban')">批量封禁素材</el-button>
+    </div>
+
     <div class="pager">
       <el-pagination layout="prev, pager, next" :total="total" :page-size="PAGE_SIZE" :current-page="query.page" @current-change="(p) => { query.page = p; load() }" />
     </div>
@@ -186,6 +239,14 @@ onMounted(load)
 </template>
 
 <style scoped>
+.batch-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+  color: #606266;
+  font-size: 13px;
+}
 .preview-ph {
   width: 64px;
   height: 64px;

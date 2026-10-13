@@ -124,38 +124,30 @@ const library = Array.from({ length: 36 }, (_, i) => {
   }
 })
 
-// 图床 blob store（内容寻址）：混合图片/音频，供 图床管理 页跑通
+// 素材管理：作者发布战役时传上来的素材（按内容哈希一份），供 素材管理 页跑通
 function fakeSha(seed) {
   const hex = '0123456789abcdef'
   let s = ''
   for (let i = 0; i < 64; i++) s += hex[Math.floor(rand(seed * 97 + i) * 16)]
   return s
 }
-const imageMedia = ['image/png', 'image/jpeg', 'image/webp']
-const audioMedia = ['audio/ogg', 'audio/mpeg', 'audio/wav']
-const blobLayerSets = [
-  '["terrain"]', '["terrain","road"]', '["object"]', '["ui"]', '[]',
-  '["background"]', '["height"]', '["edge"]', '["road","object"]',
-]
-const blobs = Array.from({ length: 12 }, (_, i) => {
-  const isAudio = i % 3 === 2
-  const owner = users[(i + 5) % users.length]
+const assetExts = ['.png', '.png', '.jpg', '.ogg', '.png', '.ogv']
+const campaignAssets = Array.from({ length: 30 }, (_, i) => {
+  const ext = assetExts[i % assetExts.length]
+  const banned = i === 4 || i === 17
   return {
     sha256: fakeSha(i + 1),
-    size: isAudio
-      ? Math.floor((30 + rand(i + 1) * 900) * 1024)
-      : Math.floor((20 + rand(i + 2) * 3000) * 1024),
-    width: isAudio ? 0 : [256, 512, 1024, 2048][i % 4],
-    height: isAudio ? 0 : [256, 512, 1024, 1024][i % 4],
-    mediaType: isAudio ? audioMedia[i % audioMedia.length] : imageMedia[i % imageMedia.length],
-    createdAt: iso((12 - i) * 43200000 + rand(i) * 1e6),
-    refCount: Math.floor(rand(i + 3) * 6),
-    layersJson: isAudio ? '[]' : blobLayerSets[i % blobLayerSets.length],
-    ownerName: owner.displayName,
-    isBanned: i === 4 || i === 9,
+    size: Math.floor((20 + rand(i + 2) * 3000) * 1024),
+    ext: banned && i === 17 ? '' : ext,
+    isBanned: banned,
+    createdAt: iso((30 - i) * 43200000 + rand(i) * 1e6),
+    firstOwnerName: users[(i + 5) % users.length].displayName,
+    campaignCount: banned ? 0 : 1 + Math.floor(rand(i + 3) * 4),
+    shareCount: i % 4 === 0 ? 1 + (i % 3) : 0,
+    approvedShareCount: i % 8 === 0 ? 1 : 0,
+    shareName: i % 4 === 0 ? `素材${i + 1}${ext}` : '',
     // mock 没有真文件：地址指向不存在的地方，视图走 @error 占位
-    url: `https://files.example.invalid/blobs/${fakeSha(i + 1).slice(0, 2)}/${fakeSha(i + 1)}${isAudio ? '.ogg' : '.png'}`,
-    thumbUrl: isAudio ? null : `https://files.example.invalid/blobs/${fakeSha(i + 1).slice(0, 2)}/${fakeSha(i + 1)}.thumb.png`,
+    url: banned ? null : `https://files.example.invalid/assets/${fakeSha(i + 1).slice(0, 2)}/${fakeSha(i + 1)}${ext}`,
   }
 })
 
@@ -507,6 +499,20 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
       contains(x.name, params.q))
     return ok(paginate(rows, Number(params.page) || 1))
   }
+  if (m === 'POST' && p === 'admin/library/batch') {
+    const hit = library.filter((r) => (data?.ids || []).includes(r.id))
+    if (data?.action === 'ban') {
+      const shas = new Set(hit.map((r) => r.sha256))
+      for (let i = library.length - 1; i >= 0; i--) if (shas.has(library[i].sha256)) library.splice(i, 1)
+      return ok({ action: 'ban', banned: shas.size })
+    }
+    if (data?.action !== 'approve' && data?.action !== 'reject') return fail(400, 'invalid_action')
+    for (const x of hit) {
+      x.status = data.action === 'approve' ? 'approved' : 'rejected'
+      x.rejectReason = data.action === 'reject' ? data?.reason || '' : ''
+    }
+    return ok({ action: data.action, changed: hit.length })
+  }
   const ml = p.match(/^admin\/library\/([^/]+)\/(approve|reject)$/)
   if (m === 'POST' && ml) {
     const x = library.find((r) => r.id === ml[1])
@@ -516,39 +522,42 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
     return ok({ id: x.id, status: x.status, rejectReason: x.rejectReason })
   }
 
-  // 图床（内容寻址 blob store）
-  if (m === 'GET' && p === 'admin/blobs') {
-    const kindOf = (b) => (String(b.mediaType).startsWith('audio/') ? 'audio' : 'image')
-    let rows = blobs.filter((b) => {
-      if (params.kind && params.kind !== 'all' && kindOf(b) !== params.kind) return false
-      if (params.layer) {
-        let ls = []
-        try { ls = JSON.parse(b.layersJson || '[]') } catch { ls = [] }
-        if (!ls.includes(params.layer)) return false
-      }
-      if (params.status === 'active' && b.isBanned) return false
-      if (params.status === 'banned' && !b.isBanned) return false
-      if (params.owner && b.ownerName !== params.owner) return false
-      if (params.q && !String(b.sha256).toLowerCase().startsWith(String(params.q).toLowerCase())) return false
-      return true
-    })
-    rows = applySort(rows, params.sort || 'createdAt', params.order)
+  // 素材管理
+  const kindExts = { image: ['.png', '.jpg', '.jpeg', '.webp'], audio: ['.ogg', '.wav', '.mp3'], video: ['.ogv', '.mp4', '.webm'] }
+  if (m === 'GET' && p === 'admin/campaign-assets') {
+    let rows = campaignAssets.filter((x) =>
+      (!params.kind || (kindExts[params.kind] || []).includes(x.ext)) &&
+      (params.status === 'active' ? !x.isBanned : params.status === 'banned' ? x.isBanned : params.status === 'shared' ? x.shareCount > 0 : true) &&
+      (!params.q || x.sha256.startsWith(String(params.q).toLowerCase()) || contains(x.shareName, params.q)))
+    rows = applySort(rows, params.sort || 'createdAt', params.order, { campaigns: 'campaignCount' })
     return ok(paginate(rows, Number(params.page) || 1))
   }
-  let mr = p.match(/^admin\/blobs\/([^/]+)\/(ban|unban)$/)
-  if (m === 'POST' && mr) {
-    const b = blobs.find((x) => x.sha256 === mr[1])
-    if (!b) return fail(404, 'blob_not_found')
-    b.isBanned = mr[2] === 'ban'
-    return ok({ ok: true, isBanned: b.isBanned })
+  let ma = p.match(/^admin\/campaign-assets\/([0-9a-f]{64})$/)
+  if (m === 'GET' && ma) {
+    const x = campaignAssets.find((r) => r.sha256 === ma[1])
+    if (!x) return fail(404, 'campaign_asset_not_found')
+    return ok({
+      sha256: x.sha256,
+      campaigns: campaigns.slice(0, x.campaignCount).map((c, i) => ({
+        campaignId: c.id, title: c.title, campaignBanned: !!c.isBanned, gameVersion: 1 + i,
+        status: 'approved', isLive: true, isPending: false,
+      })),
+      shares: Array.from({ length: x.shareCount }, (_, i) => ({
+        id: `s${i}`, name: x.shareName, status: i < x.approvedShareCount ? 'approved' : 'pending', rejectReason: '',
+        ownerName: users[i % users.length].displayName, createdAt: x.createdAt, downloadCount: i * 3,
+      })),
+    })
   }
-  mr = p.match(/^admin\/blobs\/([^/]+)$/)
-  if (m === 'DELETE' && mr) {
-    const i = blobs.findIndex((x) => x.sha256 === mr[1])
-    if (i < 0) return fail(404, 'blob_not_found')
-    const freedBytes = blobs[i].size
-    blobs.splice(i, 1)
-    return ok({ ok: true, freedBytes })
+  ma = p.match(/^admin\/campaign-assets\/([0-9a-f]{64})\/(ban|unban)$/)
+  if (m === 'POST' && ma) {
+    const i = campaignAssets.findIndex((r) => r.sha256 === ma[1])
+    if (ma[2] === 'ban') {
+      if (i >= 0) Object.assign(campaignAssets[i], { isBanned: true, url: null })
+      return ok({ ok: true, sha256: ma[1], existed: i >= 0 })
+    }
+    if (i < 0 || !campaignAssets[i].isBanned) return fail(404, 'campaign_asset_not_banned')
+    campaignAssets.splice(i, 1)
+    return ok({ ok: true, sha256: ma[1] })
   }
 
   // 配置

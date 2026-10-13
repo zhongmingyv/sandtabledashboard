@@ -46,11 +46,10 @@ export const api = {
   banWorkshopItem: (itemId, reason) => http.post('/admin/workshop/bans', { itemId, reason }),
   unbanWorkshopItem: (itemId) => http.del(`/workshop/bans/${itemId}`),
 
-  // 图床（内容寻址 blob store）
-  listBlobs: (params) => http.get('/admin/blobs', params),
-  banBlob: (sha) => http.post(`/admin/blobs/${sha}/ban`),
-  unbanBlob: (sha) => http.post(`/admin/blobs/${sha}/unban`),
-  deleteBlob: (sha) => http.del(`/admin/blobs/${sha}`),
+  // 素材管理：作者发布战役时传上来的素材（R2 按内容哈希一份），取代老图床管理
+  campaignAssets: (params) => http.get('/admin/campaign-assets', params),
+  campaignAsset: (sha) => http.get(`/admin/campaign-assets/${sha}`),
+  unbanCampaignAsset: (sha) => http.post(`/admin/campaign-assets/${sha}/unban`),
 
   // 配置
   settings: () => http.get('/admin/settings'),
@@ -97,7 +96,8 @@ export const api = {
   // 战役审核（ADR-0014 §9）：按版本审。放行 / 驳回针对战役当前那一版待审版
   reviewRevisions: (params) => http.get('/admin/review/revisions', params),
   reviewRevision: (id) => http.get(`/admin/review/revisions/${id}`),
-  approveCampaign: (id) => http.post(`/admin/review/campaigns/${id}/approve`),
+  // shareIds：详情里勾上的资源库分享，随战役一起放行
+  approveCampaign: (id, shareIds = []) => http.post(`/admin/review/campaigns/${id}/approve`, { shareIds }),
   rejectCampaign: (id, reason, block = false) => http.post(`/admin/review/campaigns/${id}/reject`, { reason, block }),
   banCampaignAsset: (sha) => http.post(`/admin/campaign-assets/${sha}/ban`),
 
@@ -105,6 +105,8 @@ export const api = {
   library: (params) => http.get('/admin/library', params),
   approveLibrary: (id) => http.post(`/admin/library/${id}/approve`),
   rejectLibrary: (id, reason) => http.post(`/admin/library/${id}/reject`, { reason }),
+  // action：approve | reject | ban（ban 按文件封，同 banCampaignAsset）
+  batchLibrary: (ids, action, reason = '') => http.post('/admin/library/batch', { ids, action, reason }),
 }
 
 /** 等后台任务做完：每 2 秒问一次，onStage(阶段说明) 给界面显示，做完返回结果。 */

@@ -2,6 +2,7 @@
 // 战役审核（ADR-0014 §9）：作者用 Maker 发布的每一版都先进「待审」，通过了其他玩家才看得到、才能开桌；
 // 审核期间已上架的旧版照常可用。驳回要填理由——作者在 Maker 的上传窗口里看得到。
 // 素材（图 / 声 / 乐）按内容哈希存在存储上，同一张图被多个战役引用只存一份；封禁一个素材 = 所有引用它的战役里它都消失。
+// 作者这次勾选分享到资源库的素材带勾选框（待审的默认勾上），放行战役时勾上的一起进资源库，没勾的留在「资源库审核」里。
 import { ref, reactive, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { api } from '../api/admin'
@@ -20,6 +21,8 @@ const detailLoading = ref(false)
 const acting = ref(false)
 // 点过「试听」的音频才挂 <audio>，免得一打开详情就连一串音频地址
 const audioOn = reactive({})
+// 随战役一起放行的资源库分享 id
+const shareIds = ref([])
 
 const IMAGE_EXT = ['.png', '.jpg', '.jpeg', '.webp']
 const AUDIO_EXT = ['.ogg', '.mp3', '.wav']
@@ -48,6 +51,7 @@ async function open(row) {
   for (const k of Object.keys(audioOn)) delete audioOn[k]
   try {
     detail.value = { ...(await api.reviewRevision(row.revisionId)), hasLiveVersion: row.hasLiveVersion }
+    shareIds.value = pendingShares().map((a) => a.share.id)
   } finally {
     detailLoading.value = false
   }
@@ -62,11 +66,21 @@ function parseList(json, key) {
   }
 }
 
+function pendingShares() {
+  return (detail.value?.assets || []).filter((a) => a.share && a.share.status === 'pending' && !a.isBanned)
+}
+
 async function approve() {
   const d = detail.value
+  const n = shareIds.value.length
+  const rest = pendingShares().length - n
+  const shareText = n || rest
+    ? `
+资源库：一起放行勾上的 ${n} 条分享${rest ? `，没勾的 ${rest} 条留在「资源库审核」里` : ''}。`
+    : ''
   try {
     await ElMessageBox.confirm(
-      `放行「${d.title}」第 ${d.gameVersion} 版？放行后所有玩家都能看到、下载、开桌。`,
+      `放行「${d.title}」第 ${d.gameVersion} 版？放行后所有玩家都能看到、下载、开桌。${shareText}`,
       '放行',
       { type: 'success' },
     )
@@ -75,8 +89,8 @@ async function approve() {
   }
   acting.value = true
   try {
-    await api.approveCampaign(d.campaignId)
-    ElMessage.success('已放行')
+    const res = await api.approveCampaign(d.campaignId, shareIds.value)
+    ElMessage.success(res?.sharesApproved ? `已放行，资源库同时放行 ${res.sharesApproved} 条` : '已放行')
     drawer.value = false
     load()
   } finally {
@@ -237,6 +251,11 @@ onMounted(load)
           </div>
 
           <h4>素材（{{ detail.assets.length }}）</h4>
+          <div v-if="pendingShares().length" style="margin: -4px 0 8px; color: #909399; font-size: 12px">
+            带勾选框的是作者分享到资源库、还在待审的素材：勾上的会随战役一起放行进资源库，没勾的留在「资源库审核」里另审。
+            <el-button link type="primary" size="small" @click="shareIds = pendingShares().map((a) => a.share.id)">全选</el-button>
+            <el-button link type="primary" size="small" @click="shareIds = []">全不选</el-button>
+          </div>
           <div style="display: flex; flex-wrap: wrap; gap: 12px">
             <div
               v-for="a in detail.assets"
@@ -263,6 +282,20 @@ onMounted(load)
                 {{ a.refs[0] || a.sha256.slice(0, 12) }}<span v-if="a.refs.length > 1"> 等 {{ a.refs.length }} 处</span>
               </div>
               <div style="color: #909399">{{ fmtBytes(a.size) }}</div>
+              <div v-if="a.share" style="margin-top: 2px">
+                <el-checkbox
+                  v-if="a.share.status === 'pending' && !a.isBanned && detail.status !== 'approved'"
+                  v-model="shareIds"
+                  :value="a.share.id"
+                  size="small"
+                >
+                  进资源库
+                </el-checkbox>
+                <el-tag v-else size="small" :type="a.share.status === 'approved' ? 'success' : 'info'" effect="plain">
+                  资源库{{ { pending: '待审', approved: '已上架', rejected: '被拒' }[a.share.status] || a.share.status }}
+                </el-tag>
+                <div style="word-break: break-all" :title="a.share.name">{{ a.share.name }}</div>
+              </div>
               <el-button v-if="!a.isBanned" link type="danger" size="small" @click="banAsset(a)">封禁素材</el-button>
             </div>
           </div>
