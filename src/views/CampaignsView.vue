@@ -61,7 +61,7 @@ async function hardDelete(row) {
     await ElMessageBox.confirm(
       row.workshopItemId
         ? `硬删除「${row.title}」？本服只有这条索引行，删掉后该条目的房间/收藏一并没了；Steam 上的条目本身不受影响（要拦内容请去「创意工坊」页把条目 id 加进名单）。不可恢复。`
-        : `硬删除「${row.title}」？将删除战役包（${fmtBytes(row.sizeBytes)}）、全部房间（含进行中的）与收藏，并触发 blob 回收，不可恢复。战役编号仍归原作者，别人不能拿它重新上传。`,
+        : `硬删除「${row.title}」？将删除战役包（${fmtBytes(row.sizeBytes)}）、全部房间（含进行中的）与收藏，并回收没人再用的素材，不可恢复。战役编号仍归原作者，别人不能拿它重新上传。`,
       '硬删除（不可逆）',
       { type: 'error', confirmButtonText: '确认删除', confirmButtonClass: 'el-button--danger' },
     )

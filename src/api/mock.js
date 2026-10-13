@@ -17,14 +17,12 @@ const users = Array.from({ length: 42 }, (_, i) => ({
   email: `user${i + 1}@example.com`,
   displayName: names[i % names.length] + (i >= names.length ? i : ''),
   createdAt: iso((42 - i) * 86400000 + rand(i) * 1e7),
-  blobQuotaBytes: i % 5 === 0 ? 128 * 1024 * 1024 : 0,
   campaignQuota: i % 4 === 0 ? 5 : 0,
   isBanned: i % 11 === 3,
   isReviewer: i % 17 === 1,
   isFeaturedMaker: i % 7 === 2,
   campaignCount: Math.floor(rand(i + 2) * 4),
   sharedAssetCount: Math.floor(rand(i + 3) * 10),
-  blobStorageBytes: Math.floor(rand(i + 4) * 64 * 1024 * 1024),
 }))
 
 const eras = ['三国', '战国', '楚汉', '春秋', '']
@@ -145,6 +143,7 @@ const campaignAssets = Array.from({ length: 30 }, (_, i) => {
     campaignCount: banned ? 0 : 1 + Math.floor(rand(i + 3) * 4),
     shareCount: i % 4 === 0 ? 1 + (i % 3) : 0,
     approvedShareCount: i % 8 === 0 ? 1 : 0,
+    pendingShareCount: i % 4 === 0 && i % 8 !== 0 ? 1 : 0,
     shareName: i % 4 === 0 ? `素材${i + 1}${ext}` : '',
     // mock 没有真文件：地址指向不存在的地方，视图走 @error 占位
     url: banned ? null : `https://files.example.invalid/assets/${fakeSha(i + 1).slice(0, 2)}/${fakeSha(i + 1)}${ext}`,
@@ -242,7 +241,7 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
     rows = applySort(rows, params.sort || 'createdAt', params.order)
     return ok({
       ...paginate(rows, Number(params.page) || 1),
-      defaults: { campaignQuota: 3, blobTotalBytes: 64 * 1024 * 1024 },
+      defaults: { campaignQuota: 3 },
     })
   }
   let mu = p.match(/^admin\/users\/([^/]+)\/(ban|unban)$/)
@@ -251,13 +250,6 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
     if (!u) return fail(404, 'user_not_found')
     u.isBanned = mu[2] === 'ban'
     return ok({ ok: true, isBanned: u.isBanned })
-  }
-  mu = p.match(/^admin\/users\/([^/]+)\/blob-quota$/)
-  if (m === 'PUT' && mu) {
-    const u = users.find((x) => x.playerId === mu[1])
-    if (!u) return fail(404, 'user_not_found')
-    u.blobQuotaBytes = Math.max(0, Number(data.bytes) || 0)
-    return ok({ blobQuotaBytes: u.blobQuotaBytes })
   }
   mu = p.match(/^admin\/users\/([^/]+)\/campaign-quota$/)
   if (m === 'PUT' && mu) {
@@ -527,7 +519,8 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
   if (m === 'GET' && p === 'admin/campaign-assets') {
     let rows = campaignAssets.filter((x) =>
       (!params.kind || (kindExts[params.kind] || []).includes(x.ext)) &&
-      (params.status === 'active' ? !x.isBanned : params.status === 'banned' ? x.isBanned : params.status === 'shared' ? x.shareCount > 0 : true) &&
+      (params.status === 'active' ? !x.isBanned : params.status === 'banned' ? x.isBanned : params.status === 'shared' ? x.shareCount > 0 :
+        params.status === 'listed' ? x.approvedShareCount > 0 : params.status === 'sharePending' ? x.pendingShareCount > 0 : true) &&
       (!params.q || x.sha256.startsWith(String(params.q).toLowerCase()) || contains(x.shareName, params.q)))
     rows = applySort(rows, params.sort || 'createdAt', params.order, { campaigns: 'campaignCount' })
     return ok(paginate(rows, Number(params.page) || 1))

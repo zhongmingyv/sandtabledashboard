@@ -1,7 +1,8 @@
 <script setup>
 // 素材管理：作者发布战役时传上来的素材（R2 上按内容哈希一份，同一张图被多个战役用到只存一份）。
 // 看每个文件被哪些战役用到、有没有分享到资源库；按文件封禁 = 文件当场删，所有用到它的战役里它一起消失、资源库里指向它的分享一起下架。
-// 解封 = 撤掉墓碑：文件已经删了不会回来，作者重新发布时补传。取代老图床管理页（老图床早已不收新图）。
+// 解封 = 撤掉墓碑：文件已经删了不会回来，作者重新发布时补传。取代老图床管理页（老图床 2026-10-13 整个拆掉）。
+// 注意这里是「所有战役用到的文件」，比 Maker 资源商店多得多：商店只有作者勾选分享、且审核通过（资源库已上架）的那些。
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Picture, Headset, VideoPlay } from '@element-plus/icons-vue'
@@ -106,6 +107,12 @@ onMounted(load)
 
 <template>
   <div>
+    <el-alert type="info" :closable="false" show-icon style="margin-bottom: 12px">
+      <template #title>
+        这里是所有战役用到的全部文件（作者发布战役时包里引用的图 / 声 / 视频都会传上来存一份），给你按文件封禁违规内容用。
+        Maker 资源商店里只有作者勾选分享、且审核通过的那部分——要看商店里有什么，状态选「资源库已上架」，或去「资源库审核」页。
+      </template>
+    </el-alert>
     <div class="page-toolbar">
       <el-select v-model="query.kind" style="width: 110px" @change="search">
         <el-option label="全部类型" value="" />
@@ -113,11 +120,13 @@ onMounted(load)
         <el-option label="声音" value="audio" />
         <el-option label="视频" value="video" />
       </el-select>
-      <el-select v-model="query.status" style="width: 130px" @change="search">
+      <el-select v-model="query.status" style="width: 170px" @change="search">
         <el-option label="全部（含封禁）" value="" />
         <el-option label="正常" value="active" />
         <el-option label="已封禁" value="banned" />
-        <el-option label="分享到资源库的" value="shared" />
+        <el-option label="资源库已上架（商店可见）" value="listed" />
+        <el-option label="资源库待审" value="sharePending" />
+        <el-option label="分享过资源库（含待审 / 被拒）" value="shared" />
       </el-select>
       <el-input
         v-model="query.q"
@@ -174,15 +183,18 @@ onMounted(load)
       <el-table-column prop="size" label="大小" width="100" sortable="custom">
         <template #default="{ row }">{{ fmtBytes(row.size) }}</template>
       </el-table-column>
-      <el-table-column prop="campaigns" label="用到它的战役" width="130" sortable="custom">
+      <el-table-column prop="campaigns" label="用到它的战役数" width="140" sortable="custom">
         <template #default="{ row }">{{ row.campaignCount }}</template>
       </el-table-column>
       <el-table-column label="资源库" width="130">
         <template #default="{ row }">
           <template v-if="row.shareCount">
-            {{ row.shareCount }} 条<span v-if="row.approvedShareCount">（{{ row.approvedShareCount }} 条上架）</span>
+            <el-tag v-if="row.approvedShareCount" type="success" size="small">已上架</el-tag>
+            <el-tag v-else-if="row.pendingShareCount" type="warning" size="small">待审</el-tag>
+            <el-tag v-else type="info" size="small">被拒</el-tag>
+            <span v-if="row.shareCount > 1" style="margin-left: 4px; color: #909399; font-size: 12px">{{ row.shareCount }} 条分享</span>
           </template>
-          <span v-else style="color: #c0c4cc">—</span>
+          <span v-else style="color: #c0c4cc">未分享</span>
         </template>
       </el-table-column>
       <el-table-column prop="firstOwnerName" label="首传者" width="120" />

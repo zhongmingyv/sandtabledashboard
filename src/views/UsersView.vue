@@ -2,13 +2,13 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { api } from '../api/admin'
-import { fmtBytes, fmtDate } from '../utils/format'
+import { fmtDate } from '../utils/format'
 import { PAGE_SIZE } from '../config'
 
 const loading = ref(false)
 const rows = ref([])
 const total = ref(0)
-const quotaDefaults = ref({ campaignQuota: 0, blobTotalBytes: 0 })
+const quotaDefaults = ref({ campaignQuota: 0 })
 const query = reactive({ q: '', sort: 'createdAt', order: 'desc', page: 1 })
 
 async function load() {
@@ -50,27 +50,6 @@ async function toggleBan(row) {
   banning ? await api.banUser(row.playerId) : await api.unbanUser(row.playerId)
   row.isBanned = banning
   ElMessage.success(banning ? '已封禁' : '已解封')
-}
-
-const MB = 1024 * 1024
-
-async function editBlobQuota(row) {
-  try {
-    const { value } = await ElMessageBox.prompt(
-      '设置该用户图床总量上限（MB，0 = 用全局默认）',
-      `修改「${row.displayName}」图床上限`,
-      {
-        inputValue: String(Math.round((row.blobQuotaBytes || 0) / MB)),
-        inputPattern: /^\d+$/,
-        inputErrorMessage: '请输入非负整数（MB）',
-      },
-    )
-    const res = await api.setBlobQuota(row.playerId, Number(value) * MB)
-    row.blobQuotaBytes = res.blobQuotaBytes
-    ElMessage.success('已更新图床上限')
-  } catch {
-    /* 取消 */
-  }
 }
 
 async function editCampaignQuota(row) {
@@ -194,13 +173,6 @@ onMounted(load)
         </template>
       </el-table-column>
       <el-table-column prop="sharedAssetCount" label="资源库分享" width="100" />
-      <el-table-column prop="blobStorageBytes" label="图床 占用/上限" width="180" sortable="custom">
-        <template #default="{ row }">
-          {{ fmtBytes(row.blobStorageBytes) }} /
-          <template v-if="row.blobQuotaBytes > 0">{{ fmtBytes(row.blobQuotaBytes) }}</template>
-          <span v-else style="color: #909399">{{ fmtBytes(quotaDefaults.blobTotalBytes) }}(默认)</span>
-        </template>
-      </el-table-column>
       <el-table-column prop="confirmedViolations" label="查实违规" width="100">
         <template #default="{ row }">
           <span :style="{ color: row.confirmedViolations > 0 ? '#f56c6c' : '#909399' }">{{ row.confirmedViolations || 0 }}</span>
@@ -209,10 +181,9 @@ onMounted(load)
       <el-table-column prop="createdAt" label="注册时间" width="150" sortable="custom">
         <template #default="{ row }">{{ fmtDate(row.createdAt) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="500" fixed="right">
+      <el-table-column label="操作" width="420" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="editCampaignQuota(row)">改战役上限</el-button>
-          <el-button link type="primary" @click="editBlobQuota(row)">改图床上限</el-button>
           <el-button link type="warning" @click="toggleReviewer(row)">
             {{ row.isReviewer ? '取消试玩号' : '设为试玩号' }}
           </el-button>

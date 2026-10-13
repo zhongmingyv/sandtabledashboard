@@ -14,7 +14,6 @@ export const api = {
   users: (params) => http.get('/admin/users', params),
   banUser: (id) => http.post(`/admin/users/${id}/ban`),
   unbanUser: (id) => http.post(`/admin/users/${id}/unban`),
-  setBlobQuota: (id, bytes) => http.put(`/admin/users/${id}/blob-quota`, { bytes }),
   setCampaignQuota: (id, count) => http.put(`/admin/users/${id}/campaign-quota`, { count }),
   setReviewer: (id, isReviewer) => http.put(`/admin/users/${id}/reviewer`, { isReviewer }),
   // GM:Maker 联网模式里出现 GM 页签,下载被举报的对局、本机播一遍、提交结论
