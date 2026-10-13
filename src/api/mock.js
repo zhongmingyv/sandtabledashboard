@@ -525,6 +525,23 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
     rows = applySort(rows, params.sort || 'createdAt', params.order, { campaigns: 'campaignCount' })
     return ok(paginate(rows, Number(params.page) || 1))
   }
+  if (m === 'POST' && p === 'admin/campaign-assets/batch') {
+    const hit = campaignAssets.filter((x) => (data?.shas || []).includes(x.sha256))
+    if (data?.action === 'unlist') {
+      const n = hit.reduce((sum, x) => sum + x.approvedShareCount, 0)
+      hit.forEach((x) => { x.approvedShareCount = 0 })
+      return ok({ action: 'unlist', changed: n })
+    }
+    if (data?.action === 'ban') {
+      hit.forEach((x) => Object.assign(x, { isBanned: true, url: null }))
+      return ok({ action: 'ban', changed: (data.shas || []).length })
+    }
+    if (data?.action === 'delete') {
+      for (const x of hit) campaignAssets.splice(campaignAssets.indexOf(x), 1)
+      return ok({ action: 'delete', changed: hit.length })
+    }
+    return fail(400, 'invalid_action')
+  }
   let ma = p.match(/^admin\/campaign-assets\/([0-9a-f]{64})$/)
   if (m === 'GET' && ma) {
     const x = campaignAssets.find((r) => r.sha256 === ma[1])

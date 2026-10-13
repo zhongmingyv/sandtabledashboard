@@ -14,6 +14,8 @@ const loading = ref(false)
 const rows = ref([])
 const total = ref(0)
 const query = reactive({ kind: '', status: '', q: '', sort: 'createdAt', order: 'desc', page: 1 })
+const selected = ref([])
+const acting = ref(false)
 
 const IMAGE_EXT = ['.png', '.jpg', '.jpeg', '.webp']
 const VIDEO_EXT = ['.ogv', '.mp4', '.webm']
@@ -38,6 +40,7 @@ function kindOf(row) {
 
 async function load() {
   loading.value = true
+  selected.value = []
   try {
     const res = await api.campaignAssets({ ...query })
     rows.value = res.items || []
@@ -58,7 +61,8 @@ function onSort({ prop, order }) {
   search()
 }
 
-async function open(row) {
+async function open(row, column) {
+  if (column?.type === 'selection') return // 点勾选框不开详情
   drawer.value = true
   detail.value = null
   detailRow.value = row
@@ -119,6 +123,46 @@ async function unban(row) {
   load()
 }
 
+async function batch(action) {
+  const picked = selected.value
+  if (!picked.length) return
+  const n = picked.length
+  const campaigns = picked.reduce((sum, r) => sum + (r.campaignCount || 0), 0)
+  let reason = ''
+  try {
+    if (action === 'unlist') {
+      ;({ value: reason } = await ElMessageBox.prompt(
+        `把选中的 ${n} 个文件从资源库下架：Maker 商店里不再看得到，文件不删、战役照常。理由作者看得到（留空 = 运营下架）。`,
+        '批量下架',
+        { inputPlaceholder: '运营下架', inputValidator: (v) => (v || '').length <= 500 || '最多 500 字', type: 'warning' },
+      ))
+    } else if (action === 'ban') {
+      await ElMessageBox.confirm(
+        `封禁选中的 ${n} 个文件？文件立刻删除，用到它们的战役（合计 ${campaigns} 个次）里都会缺图 / 缺声，资源库分享一起下架，以后谁都不能再传同样的文件。`,
+        '批量封禁（违规内容）',
+        { type: 'error', confirmButtonText: '封禁', confirmButtonClass: 'el-button--danger' },
+      )
+    } else {
+      await ElMessageBox.confirm(
+        `删除选中的 ${n} 个文件？文件与记录一起删，资源库里指向它们的分享一起删掉；用到它们的战役（合计 ${campaigns} 个次）里会缺图 / 缺声，作者重新发布时会补传。不拦再传（要拦用封禁）。`,
+        '批量删除',
+        { type: 'error', confirmButtonText: '删除', confirmButtonClass: 'el-button--danger' },
+      )
+    }
+  } catch {
+    return
+  }
+  acting.value = true
+  try {
+    const res = await api.batchCampaignAssets(picked.map((r) => r.sha256), action, (reason || '').trim())
+    const verb = { unlist: '下架', ban: '封禁', delete: '删除' }[action]
+    ElMessage.success(action === 'unlist' ? `已下架 ${res.changed} 条分享` : `已${verb} ${res.changed} 个文件`)
+    load()
+  } finally {
+    acting.value = false
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -158,7 +202,24 @@ onMounted(load)
       <span style="color: #909399">共 {{ total }} 个文件</span>
     </div>
 
-    <el-table :data="rows" v-loading="loading" border @sort-change="onSort" @row-click="open" style="cursor: pointer">
+    <div class="batch-bar">
+      <span>已选 {{ selected.length }} 个</span>
+      <el-button type="warning" size="small" :disabled="!selected.length" :loading="acting" @click="batch('unlist')">批量下架</el-button>
+      <el-button type="danger" size="small" plain :disabled="!selected.length" :loading="acting" @click="batch('ban')">批量封禁</el-button>
+      <el-button type="danger" size="small" :disabled="!selected.length" :loading="acting" @click="batch('delete')">批量删除</el-button>
+    </div>
+
+    <el-table
+      :data="rows"
+      v-loading="loading"
+      border
+      row-key="sha256"
+      style="cursor: pointer"
+      @sort-change="onSort"
+      @row-click="open"
+      @selection-change="(v) => (selected = v)"
+    >
+      <el-table-column type="selection" width="44" />
       <el-table-column label="预览" width="150">
         <template #default="{ row }">
           <div v-if="row.isBanned" class="preview-ph"><span style="color: #f56c6c">已封禁</span></div>
@@ -226,6 +287,13 @@ onMounted(load)
         </template>
       </el-table-column>
     </el-table>
+
+    <div class="batch-bar">
+      <span>已选 {{ selected.length }} 个</span>
+      <el-button type="warning" size="small" :disabled="!selected.length" :loading="acting" @click="batch('unlist')">批量下架</el-button>
+      <el-button type="danger" size="small" plain :disabled="!selected.length" :loading="acting" @click="batch('ban')">批量封禁</el-button>
+      <el-button type="danger" size="small" :disabled="!selected.length" :loading="acting" @click="batch('delete')">批量删除</el-button>
+    </div>
 
     <div class="pager">
       <el-pagination
@@ -298,6 +366,14 @@ onMounted(load)
 </template>
 
 <style scoped>
+.batch-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+  color: #606266;
+  font-size: 13px;
+}
 .preview-ph {
   width: 64px;
   height: 64px;

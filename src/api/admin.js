@@ -51,6 +51,8 @@ export const api = {
   unbanCampaignAsset: (sha) => http.post(`/admin/campaign-assets/${sha}/unban`),
   // 从资源库下架：只撤分享、不碰文件
   unlistCampaignAsset: (sha, reason = '') => http.post(`/admin/campaign-assets/${sha}/unlist`, { reason }),
+  // action：unlist（下架）| ban（封禁，留墓碑拦再传）| delete（删除，不留墓碑）
+  batchCampaignAssets: (shas, action, reason = '') => http.post('/admin/campaign-assets/batch', { shas, action, reason }),
 
   // 配置
   settings: () => http.get('/admin/settings'),

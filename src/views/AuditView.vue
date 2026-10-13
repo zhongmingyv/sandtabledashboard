@@ -21,6 +21,7 @@ const actionLabel = {
   'campaign.delete': '硬删战役',
   'campaignAsset.ban': '封禁素材',
   'campaignAsset.unban': '解封素材',
+  'campaignAsset.delete': '删除素材',
   'sharedAsset.approved': '放行资源库素材',
   'sharedAsset.rejected': '驳回资源库素材',
   'blob.ban': '封禁图片',
