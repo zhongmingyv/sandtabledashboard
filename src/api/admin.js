@@ -45,6 +45,9 @@ export const api = {
   banWorkshopItem: (itemId, reason) => http.post('/admin/workshop/bans', { itemId, reason }),
   unbanWorkshopItem: (itemId) => http.del(`/workshop/bans/${itemId}`),
 
+  // 擂台：所有擂台（含擂主被封的）；下架 = 撤擂，连战绩删
+  arenas: (params) => http.get('/admin/arenas', params),
+  deleteArena: (id) => http.del(`/admin/arenas/${id}`),
   // 素材管理：作者发布战役时传上来的素材（R2 按内容哈希一份），取代老图床管理
   campaignAssets: (params) => http.get('/admin/campaign-assets', params),
   campaignAsset: (sha) => http.get(`/admin/campaign-assets/${sha}`),

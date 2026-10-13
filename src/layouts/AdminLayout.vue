@@ -27,6 +27,7 @@ const menus = [
       { name: 'campaigns', title: '战役管理', icon: 'Files' },
       { name: 'review', title: '战役审核', icon: 'Checked' },
       { name: 'library', title: '资源库审核', icon: 'Collection' },
+      { name: 'arenas', title: '擂台', icon: 'Trophy' },
       { name: 'workshop', title: '创意工坊', icon: 'Shop' },
       { name: 'assets', title: '素材管理', icon: 'Picture' },
     ],

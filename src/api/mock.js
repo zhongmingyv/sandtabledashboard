@@ -122,6 +122,28 @@ const library = Array.from({ length: 36 }, (_, i) => {
   }
 })
 
+// 擂台：擂主给每个阵营定谁来下
+const arenaFactions = '[{"factionId":"A","name":"秦"},{"factionId":"B","name":"楚"},{"factionId":"C","name":"齐"}]'
+const arenas = Array.from({ length: 7 }, (_, i) => ({
+  id: 'arena' + i,
+  ownerId: users[i % users.length].playerId,
+  ownerName: users[i % users.length].displayName,
+  ownerBanned: i === 5,
+  gameId: 'camp_' + String(i).repeat(32).slice(0, 32),
+  levelId: 'L' + (i % 2 + 1),
+  levelName: i % 2 ? '第二关' : '第一关',
+  campaignId: 'c' + i,
+  campaignTitle: ['赤壁', '长平', 'Battle for Moscow'][i % 3],
+  campaignFactionsJson: arenaFactions,
+  roles: {
+    A: { role: 'owner', bot: i % 2 ? { id: '', default: true } : { id: 'b' + i, name: '铁壁', ownerName: users[i % users.length].displayName } },
+    B: { role: 'open', bot: null },
+    ...(i % 3 === 0 ? { C: { role: 'bot', bot: { id: 'pkg:rush.json', packaged: true } } } : {}),
+  },
+  wins: (i * 7) % 11, losses: (i * 3) % 5, draws: i % 2, running: i % 3,
+  createdAt: Date.now() - i * 86400000,
+}))
+
 // 素材管理：作者发布战役时传上来的素材（按内容哈希一份），供 素材管理 页跑通
 function fakeSha(seed) {
   const hex = '0123456789abcdef'
@@ -162,10 +184,6 @@ const settings = [
   { key: 'report.enabled', label: '收举报', value: '1', default: '1', unit: '', type: 'bool' },
   { key: 'revision.tableReleaseDays', label: '旧版本几天后释放还没打完的桌', value: '21', default: '21', unit: '天', type: 'int' },
   { key: 'revision.keepDays', label: '旧版本几天后删除(须大于上一项)', value: '30', default: '30', unit: '天', type: 'int' },
-  { key: 'table.idleMinutes', label: '开桌默认:多久没操作转 AI 托管(1~60)', value: '5', default: '5', unit: '分钟', type: 'int' },
-  { key: 'table.offlineMinutes', label: '开桌默认:多久不在算掉线、对手可替下(1~60)', value: '3', default: '3', unit: '分钟', type: 'int' },
-  { key: 'table.botWorkMultiple', label: '开桌默认:bot 每手最多算默认 BOT 的几倍', value: '5', default: '5', unit: '倍', type: 'int' },
-  { key: 'table.maxBotWorkMultiple', label: 'bot 倍数上限(房主最多能选到几倍,不小于上一项)', value: '10', default: '10', unit: '倍', type: 'int' },
 ]
 
 const audit = Array.from({ length: 35 }, (_, i) => ({
@@ -522,6 +540,19 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
     x.status = ml[2] === 'approve' ? 'approved' : 'rejected'
     x.rejectReason = ml[2] === 'reject' ? data?.reason || '' : ''
     return ok({ id: x.id, status: x.status, rejectReason: x.rejectReason })
+  }
+
+  // 擂台
+  if (m === 'GET' && p === 'admin/arenas') {
+    const rows = arenas.filter((x) => contains(x.campaignTitle, params.q) || contains(x.ownerName, params.q))
+    return ok(paginate(rows, Number(params.page) || 1))
+  }
+  const mar = p.match(/^admin\/arenas\/([^/]+)$/)
+  if (m === 'DELETE' && mar) {
+    const i = arenas.findIndex((x) => x.id === mar[1])
+    if (i < 0) return fail(404, 'arena_not_found')
+    arenas.splice(i, 1)
+    return ok({ ok: true })
   }
 
   // 素材管理
