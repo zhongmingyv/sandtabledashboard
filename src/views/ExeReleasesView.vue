@@ -1,6 +1,7 @@
 <script setup>
 // 官方发版的 exe：「Maker 版本」与「用户版服务器」两页共用（路由传 product）。
-// 发版脚本打出来的 exe 传上来，就成为该产品的最新版；客户端每次打开问服务器「最新是几版」，比自己新就下载换上。
+// 发版脚本打出来的 exe 由浏览器直接传给 R2（不经服务器），先「待生效」，点「生效」才成为该产品的最新版；
+// 客户端每次打开问服务器「最新是几版」，比自己新就下载换上。
 // 版本号由发版脚本烙进 exe 的文件版本，服务器照读、这里不让填——填错了玩家装完仍自认旧版，每次启动都要再下一遍。
 // 「强制升级」就是全局配置里该产品的「最低版本」：低于它的一打开就被拦住，必须先更新。
 import { ref, computed, watch } from 'vue'
@@ -15,9 +16,10 @@ const PRODUCTS = {
     name: 'Maker',
     file: 'SandTableClub.exe',
     intro:
-      '跑 property-editor/build/release.bat 出包（版本号自动加 1），把 build/SandTableClub.exe 传到这里就成为 Maker 的最新版。' +
-      '版本号从 exe 里读，不用填；不比已有版本新的会被拒。Maker 打开时自动在后台下载、下次启动换上。' +
-      '只保留最新一版的文件。勾「强制升级」= 低于这一版的 Maker 一打开就被拦住、必须更新（就是全局配置里的「Maker 最低版本」）。',
+      '跑 property-editor/build/release.bat 出包（版本号自动加 1），把 build/SandTableClub.exe 传到这里：浏览器直接传给 R2，不经服务器。' +
+      '传上来先「待生效」，Maker 看不到；在列表里点「生效」才成为最新版，Maker 打开时自动在后台下载、下次启动换上。' +
+      '版本号从 exe 里读，不用填；不比已有版本新的会被拒。只保留生效的最新一版的文件。' +
+      '「生效」时勾「强制升级」= 低于这一版的 Maker 一打开就被拦住、必须更新（就是全局配置里的「Maker 最低版本」）。',
     forceWarn: (v) => `低于第 ${v} 版的 Maker 一打开就会被拦住，必须下完新版才能继续用；联机开桌 / 加入也会被拦。继续？`,
     unforceInfo: '取消强制后，旧版 Maker 照常能用（仍会在后台下载新版、下次启动换上）。继续？',
     withdrawInfo: (v) =>
@@ -29,9 +31,10 @@ const PRODUCTS = {
     name: '用户版服务器',
     file: '对战服务器.exe',
     intro:
-      '跑 SLGMServer/buildLanRelease.bat 出包（版本号自动加 1，记在 Lan/version.txt），把 Lan/out/对战服务器.exe 传到这里就成为用户版服务器的最新版。' +
-      '版本号从 exe 里读，不用填；不比已有版本新的会被拒。玩家自建的服务器启动时（之后每 6 小时）问官方站，有新版就在窗口底栏提示，点一下下载、换新、自动重启（原来开着就接着开）。' +
-      '只保留最新一版的文件。勾「强制升级」= 低于这一版的一打开就要求更新，不更新就关掉（就是全局配置里的「用户版服务器最低版本」）。',
+      '跑 SLGMServer/buildLanRelease.bat 出包（版本号自动加 1，记在 Lan/version.txt），把 Lan/out/对战服务器.exe 传到这里：浏览器直接传给 R2，不经服务器。' +
+      '传上来先「待生效」，点「生效」才成为最新版。版本号从 exe 里读，不用填；不比已有版本新的会被拒。' +
+      '玩家自建的服务器启动时（之后每 6 小时）问官方站，有新版就在窗口底栏提示，点一下下载、换新、自动重启（原来开着就接着开）。' +
+      '只保留生效的最新一版的文件。「生效」时勾「强制升级」= 低于这一版的一打开就要求更新，不更新就关掉（就是全局配置里的「用户版服务器最低版本」）。',
     forceWarn: (v) => `低于第 ${v} 版的用户版服务器一打开就要求更新，不更新就关掉。继续？`,
     unforceInfo: '取消强制后，旧版照常能用（窗口底栏仍会提示有新版）。继续？',
     withdrawInfo: (v) =>
@@ -49,17 +52,21 @@ const rows = ref([])
 const minVersion = ref(0)
 const uploading = ref(false)
 const progress = ref(0)
-// 传完之后服务器登记的阶段（空 = 还在传）
+// 进度条之外要显示的一句话（算校验值 / 服务器处理到哪一步）；空 = 正在传，显示进度条
 const stage = ref('')
 const fileInput = ref(null)
+// 「生效」对话框：点的是哪一版、要不要顺手强制升级
+const activating = ref(null)
 const forced = ref(false)
+const activateBusy = ref(false)
 const lastResult = ref(null)
 const lastError = ref('')
 
-const latest = () => rows.value.find((r) => !r.archived) || null
+const latest = () => rows.value.find((r) => !r.archived && !r.pending) || null
 
 // 这一版的人打开时会怎样：低于最低版本 = 强制升级；最新那一版 = 最新；其余 = 可选升级（提示有新版，不拦）
 function upgradeOf(row) {
+  if (row.pending && !row.archived) return { text: '待生效', type: 'warning' }
   const top = latest()
   if (top && row.version === top.version) return { text: '最新', type: 'success' }
   if (minVersion.value && row.version < minVersion.value) return { text: '强制升级', type: 'danger' }
@@ -85,7 +92,8 @@ function pick() {
 async function upload(e) {
   const file = e.target.files?.[0]
   if (!file) return
-  if (!file.name.toLowerCase().endsWith('.exe')) {
+  // zip 也收：服务器解出里面的 exe（认 cfg.file 这个名字，或 zip 里唯一的那个 exe）
+  if (!/\.(exe|zip)$/i.test(file.name)) {
     ElMessage.error(`请选择发版脚本打出来的 ${cfg.value.file}`)
     return
   }
@@ -95,23 +103,23 @@ async function upload(e) {
   lastResult.value = null
   lastError.value = ''
   try {
-    const res = await api.uploadExe(
+    // exe 浏览器直传 R2；zip 要服务器解开，只能经服务器中转（慢）
+    const send = /\.exe$/i.test(file.name) ? api.uploadExeDirect : api.uploadExe
+    const res = await send(
       cfg.value.root,
       file,
-      forced.value,
       (sent, total) => {
         progress.value = Math.floor((sent * 100) / total)
       },
       (s) => {
-        stage.value = s || '处理中'
+        stage.value = s
       },
     )
     lastResult.value = res
-    ElMessage.success(`${cfg.value.name}第 ${res.version} 版已成为最新版${forced.value ? '，并设为强制升级' : ''}`)
-    forced.value = false
+    ElMessage.success(`${cfg.value.name}第 ${res.version} 版已传上去，待生效：在列表里点「生效」`)
     load()
   } catch (err) {
-    lastError.value = err?.response?.data?.message || err?.response?.data?.error || '上传失败'
+    lastError.value = err?.response?.data?.message || err?.response?.data?.error || err?.message || '上传失败'
   } finally {
     uploading.value = false
     stage.value = ''
@@ -132,6 +140,26 @@ async function setMinVersion(version) {
   await api.saveSettings({ [cfg.value.minKey]: version ? String(version) : '' })
   ElMessage.success('已保存')
   load()
+}
+
+function openActivate(row) {
+  forced.value = false
+  activating.value = row
+}
+
+async function activate() {
+  const row = activating.value
+  activateBusy.value = true
+  try {
+    await api.activateExeRelease(cfg.value.root, row.version, forced.value)
+    ElMessage.success(`第 ${row.version} 版已生效${forced.value ? '，并设为强制升级' : ''}`)
+    activating.value = null
+    load()
+  } catch (err) {
+    ElMessage.error(err?.response?.data?.message || err?.response?.data?.error || '生效失败')
+  } finally {
+    activateBusy.value = false
+  }
 }
 
 async function withdraw(row) {
@@ -176,11 +204,10 @@ watch(
     </el-alert>
 
     <div class="page-toolbar">
-      <input ref="fileInput" type="file" accept=".exe" style="display: none" @change="upload" />
-      <el-checkbox v-model="forced" :disabled="uploading">强制升级</el-checkbox>
+      <input ref="fileInput" type="file" accept=".exe,.zip" style="display: none" @change="upload" />
       <el-button type="primary" :loading="uploading" @click="pick">上传新版本</el-button>
       <el-progress v-if="uploading && !stage" :percentage="progress" style="width: 280px" />
-      <span v-if="uploading && stage" style="color: #909399">已传完，服务器正在处理：{{ stage }}……</span>
+      <span v-if="uploading && stage" style="color: #909399">{{ stage }}……</span>
       <div class="spacer" />
       <el-button @click="load">刷新</el-button>
     </div>
@@ -196,7 +223,7 @@ watch(
     <el-alert
       v-if="lastResult"
       type="success"
-      :title="`${cfg.name}第 ${lastResult.version} 版（${fmtBytes(lastResult.size)}）已成为最新版`"
+      :title="`${cfg.name}第 ${lastResult.version} 版（${fmtBytes(lastResult.size)}）已传上去，待生效：在下面列表里点「生效」`"
       show-icon
       style="margin-bottom: 12px"
       @close="lastResult = null"
@@ -258,8 +285,9 @@ watch(
         </el-table-column>
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
+            <el-button v-if="row.pending && !row.archived" link type="primary" @click="openActivate(row)">生效</el-button>
             <el-tooltip
-              v-if="row.version !== minVersion"
+              v-if="!row.pending && row.version !== minVersion"
               :content="`设好后：低于第 ${row.version} 版的必须升级，第 ${row.version} 版及以上不强制`"
               placement="top"
             >
@@ -270,5 +298,19 @@ watch(
         </el-table-column>
       </el-table>
     </el-card>
+
+    <el-dialog :model-value="!!activating" title="生效" width="460px" @close="activating = null">
+      <template v-if="activating">
+        <p style="margin-top: 0">
+          让{{ cfg.name }}第 {{ activating.version }} 版（{{ fmtBytes(activating.size) }}）成为最新版？
+          生效后客户端打开就会下载它，比它旧的版本文件随即删掉。
+        </p>
+        <el-checkbox v-model="forced">强制升级：低于这一版的一打开就被拦住、必须更新</el-checkbox>
+      </template>
+      <template #footer>
+        <el-button @click="activating = null">取消</el-button>
+        <el-button type="primary" :loading="activateBusy" @click="activate">生效</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>

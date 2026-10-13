@@ -80,16 +80,22 @@ export const api = {
   },
   uploadGamePackage,
 
-  // 网页版模板：Maker 发版打的 web-template.zip（引擎 + 预编译代码），所有战役共用、只留最新一份。
+  // 网页版模板：Maker 发版打的 web-template.zip（引擎 + 预编译代码），所有战役共用。
+  // 换下来的上一版留着可回滚（activateWebTemplate），更早的 keepDays 天后服务器自己删。
   // 游戏数据不在这里：网页版开局按战役编号去下 Maker「上传战役」传上来、审核通过的那一版
   webTemplate: () => http.get('/admin/web-template'),
   uploadWebTemplate,
+  uploadWebTemplateDirect,
+  activateWebTemplate: (dir) => http.post(`/admin/web-template/${dir}/activate`),
 
   // 官方发版的 exe：Maker 版本（root = /admin/maker-releases）与用户版服务器（/admin/lan-server-releases），
   // 客户端启动查新 / 强制升级。两页同一套接口，只换 root
   exeReleases: (root) => http.get(root),
   withdrawExeRelease: (root, version) => http.del(`${root}/${version}`),
+  // 传上来的先「待生效」，点这个才成为最新版；forced = 顺手把最低版本设成这一版（强制升级）
+  activateExeRelease: (root, version, forced) => http.post(`${root}/${version}/activate`, undefined, { forced }),
   uploadExe,
+  uploadExeDirect,
 
   // Steam 应用：这台服务器认哪几个 Steam 应用（Maker 本体 + 官方游戏），各用哪把发行商密钥验票、要不要先买。
   // 密钥只写不读：列表只给末 4 位；保存时 webApiKey 留空 = 保留原来那把。
@@ -156,14 +162,108 @@ async function uploadWebTemplate(file, onProgress, onStage) {
 }
 
 /**
- * 分片上传官方发版的 exe（Maker / 用户版服务器）并登记（同上，几十到几百 MB）。版本号不用填：服务器从 exe 的文件版本读。
- * forced：登记成功后把该产品的「最低版本」设成这一版，低于它的一打开就得先更新。
+ * 经服务器中转分片上传官方发版的 exe 或装着它的 zip（Maker / 用户版服务器）并登记成待生效（同上，几十到几百 MB，慢）。
+ * exe 走 uploadExeDirect 直传 R2；zip 要服务器解开，只能走这里。版本号不用填：服务器从 exe 的文件版本读。
  */
-async function uploadExe(root, file, forced, onProgress, onStage) {
+async function uploadExe(root, file, onProgress, onStage) {
   const prefix = `${root}/uploads`
   const uploadId = await uploadChunks(prefix, file, onProgress)
-  const res = await http.post(`${prefix}/${uploadId}/complete`, undefined, { forced })
-  return waitJob(res, uploadId, onStage, prefix)
+  const res = await http.post(`${prefix}/${uploadId}/complete`)
+  return waitJob(res, uploadId, serverStage(onStage), prefix)
+}
+
+/**
+ * 直传 exe（Maker / 用户版服务器）：浏览器算好 SHA-256，整个文件分片直接传给 R2（不经服务器），服务器只认版本号、登记成待生效。
+ * onStage(说明)：算校验值 / 服务器处理各阶段；传的过程中给空串（界面显示进度条）。
+ */
+async function uploadExeDirect(root, file, onProgress, onStage) {
+  onStage?.('正在计算校验值（几百 MB 要几秒）')
+  const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer())
+  const sha256 = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
+  onStage?.('')
+  const { uploadId, parts } = await directUpload([file], onProgress)
+  const res = await http.post(`${root}/direct/${uploadId}/complete`, { parts, sha256 })
+  return waitJob(res, uploadId, serverStage(onStage), `${root}/uploads`)
+}
+
+/** 直传网页版模板：打包出来的 web-template 文件夹里的一个个文件分片直接传给 R2，服务器查文件名、登记成待生效。 */
+async function uploadWebTemplateDirect(files, onProgress, onStage) {
+  const { uploadId, parts } = await directUpload(files, onProgress)
+  const res = await http.post(`/admin/web-template/direct/${uploadId}/complete`, { parts })
+  return waitJob(res, uploadId, serverStage(onStage), '/admin/web-template/uploads')
+}
+
+/** 服务器登记阶段的说明前面加「服务器正在处理」，与传之前的「计算校验值」区分开。 */
+function serverStage(onStage) {
+  return (s) => onStage?.(`已传完，服务器正在处理：${s || '排队中'}`)
+}
+
+/** 同时传几片：浏览器对同一个域名本来也只开六条连接，再多没用。 */
+const DIRECT_PARALLEL = 4
+
+/**
+ * 后台大文件直传（服务器 Admin/DirectUpload）：服务器给每个文件每一片签好 R2 的上传地址，这里几片一起 PUT 过去、
+ * 收齐每一片应答头里的 ETag 交回给各页的「完成」端点。一片失败重试两次，还不行整趟作废（告诉服务器丢掉已传的片）。
+ * R2 桶的跨站规则要放行后台域名的 PUT、并露出 ETag，否则一片都传不成（服务器 --check-r2 会查）。
+ */
+async function directUpload(files, onProgress) {
+  const start = await http.post('/admin/direct-uploads', { files: files.map((f) => ({ name: f.name, size: f.size })) })
+  const { uploadId, partBytes } = start
+  const total = files.reduce((sum, f) => sum + f.size, 0)
+  const loaded = new Map()
+  const report = () => onProgress?.([...loaded.values()].reduce((a, b) => a + b, 0), total)
+  const jobs = start.files.flatMap((f, fi) => f.urls.map((url, i) => ({ fi, partNumber: i + 1, url })))
+  const parts = start.files.map(() => [])
+  let next = 0
+  async function worker() {
+    while (next < jobs.length) {
+      const job = jobs[next++]
+      const from = (job.partNumber - 1) * partBytes
+      const blob = files[job.fi].slice(from, from + partBytes)
+      const id = `${job.fi}:${job.partNumber}`
+      const eTag = await putPart(job.url, blob, (n) => {
+        loaded.set(id, n)
+        report()
+      })
+      parts[job.fi][job.partNumber - 1] = { partNumber: job.partNumber, eTag }
+    }
+  }
+  try {
+    await Promise.all(Array.from({ length: Math.min(DIRECT_PARALLEL, jobs.length) }, worker))
+  } catch (err) {
+    http.del(`/admin/direct-uploads/${uploadId}`).catch(() => {})
+    throw err
+  }
+  return { uploadId, parts }
+}
+
+/** PUT 一片，回它的 ETag。XHR 而不是 fetch：要上传进度。失败重试两次。 */
+async function putPart(url, blob, onLoaded, attempt = 1) {
+  if (url.startsWith('mock:')) {
+    onLoaded(blob.size)
+    return '"mock"'
+  }
+  try {
+    return await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+      xhr.open('PUT', url)
+      xhr.upload.onprogress = (e) => onLoaded(e.loaded)
+      xhr.onload = () => {
+        const eTag = xhr.getResponseHeader('ETag')
+        if (xhr.status >= 200 && xhr.status < 300 && eTag) resolve(eTag)
+        else if (xhr.status >= 200 && xhr.status < 300)
+          reject(new Error('传上去了但拿不到 ETag：R2 桶的跨站规则没把 ETag 露出来（服务器上跑 --check-r2 看怎么改）'))
+        else reject(new Error(`R2 拒收这一片：HTTP ${xhr.status}`))
+      }
+      xhr.onerror = () =>
+        reject(new Error('传不到 R2：网络断了，或 R2 桶的跨站规则没放行后台域名的 PUT（服务器上跑 --check-r2 看怎么改）'))
+      xhr.send(blob)
+    })
+  } catch (err) {
+    if (attempt >= 3) throw err
+    onLoaded(0)
+    return putPart(url, blob, onLoaded, attempt + 1)
+  }
 }
 
 /** 开一个分片上传、逐片 PUT 完，返回上传 id。 */

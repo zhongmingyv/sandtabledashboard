@@ -63,11 +63,34 @@ const gameReleases = [
 const gameUploads = {}
 
 // 网页版模板：所有战役共用一份。mock 下没有真包可读，上传完成时换一个标识
-let webTemplate = {
-  dir: '3fa9c2d1', size: 147 * 1024 * 1024, fileCount: 9, createdAt: iso(86400000),
-  files: ['index.html', 'index.js', 'index.wasm', 'index.pck', 'index.png', 'index.icon.png'],
+const webFiles = ['index.html', 'index.js', 'index.wasm', 'index.pck', 'index.png', 'index.icon.png']
+// 留着的模板：正在用的 + 上一版（不删）+ 待删除（expiresAt）
+let webTemplates = [
+  { dir: '3fa9c2d1', size: 147 * 1024 * 1024, fileCount: 6, files: webFiles, createdAt: iso(86400000),
+    isCurrent: true, retiredAt: null, expiresAt: null },
+  { dir: '8b02e7aa', size: 146 * 1024 * 1024, fileCount: 6, files: webFiles, createdAt: iso(5 * 86400000),
+    isCurrent: false, retiredAt: iso(86400000), expiresAt: null },
+  { dir: '5c11d0f4', size: 145 * 1024 * 1024, fileCount: 6, files: webFiles, createdAt: iso(9 * 86400000),
+    isCurrent: false, retiredAt: iso(5 * 86400000), expiresAt: iso(-2 * 86400000) },
+]
+function webTemplateState() {
+  return { chunkBytes: 16 * 1024 * 1024, keepDays: 7, current: webTemplates.find((t) => t.isCurrent) || null, versions: webTemplates }
+}
+// 同服务器 WebTemplateStore.Activate：正在用的退成上一版，原来的上一版进 7 天倒计时
+function activateWebTemplate(dir) {
+  const target = webTemplates.find((t) => t.dir === dir)
+  if (!target) return false
+  if (target.isCurrent) return true
+  for (const t of webTemplates) {
+    if (!t.isCurrent && !t.expiresAt && t !== target) t.expiresAt = iso(-7 * 86400000)
+  }
+  for (const t of webTemplates) if (t.isCurrent) Object.assign(t, { isCurrent: false, retiredAt: iso(0) })
+  Object.assign(target, { isCurrent: true, pending: false, retiredAt: null, expiresAt: null })
+  webTemplates = [target, ...webTemplates.filter((t) => t !== target).sort((a, b) => (b.retiredAt > a.retiredAt ? 1 : -1))]
+  return true
 }
 const webUploads = {}
+const directUploads = {}
 
 // 房间：没结束的对局桌。形状 = 玩家端对局详情 + lastOpAt / onlinePlayerIds
 const matches = Array.from({ length: 6 }, (_, i) => {
@@ -372,6 +395,33 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
     return ok({ itemId: mw[1], banned: false })
   }
 
+  // 后台直传（演示：地址是 mock:，前端认得、不真传）
+  if (m === 'POST' && p === 'admin/direct-uploads') {
+    const uploadId = Math.random().toString(16).slice(2).padEnd(32, '0').slice(0, 32)
+    const partBytes = 16 * 1024 * 1024
+    directUploads[uploadId] = data.files
+    return ok({
+      uploadId, partBytes,
+      files: data.files.map((f) => ({ name: f.name, urls: Array.from({ length: Math.max(1, Math.ceil(f.size / partBytes)) }, (_, i) => `mock:${i}`) })),
+    })
+  }
+  const mdu = p.match(/^admin\/direct-uploads\/([^/]+)$/)
+  if (m === 'DELETE' && mdu) {
+    delete directUploads[mdu[1]]
+    return ok({ ok: true })
+  }
+  const mwd = p.match(/^admin\/web-template\/direct\/([^/]+)\/complete$/)
+  if (m === 'POST' && mwd) {
+    const files = directUploads[mwd[1]]
+    if (!files) return fail(404, 'upload_not_found')
+    delete directUploads[mwd[1]]
+    const dir = Math.random().toString(16).slice(2, 10)
+    const names = files.map((f) => f.name)
+    webTemplates.push({ dir, size: files.reduce((s, f) => s + f.size, 0), fileCount: names.length, files: names, createdAt: iso(0),
+      isCurrent: false, pending: true, retiredAt: iso(0), expiresAt: iso(-7 * 86400000) })
+    return ok({ status: 'done', template: webTemplates.at(-1) })
+  }
+
   // 用户版服务器（只读演示：上传 / 撤下要真服务器）
   if (m === 'GET' && p === 'admin/lan-server-releases') {
     return ok({
@@ -391,6 +441,7 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
       chunkBytes: 16 * 1024 * 1024,
       minVersion: 0,
       items: [
+        { version: 3, size: 430377976, sha256: 'ef'.repeat(32), createdAt: '2026-10-14T08:00:00Z', downloadCount: 0, archived: false, pending: true, url: 'https://files.example.invalid/maker/v3-efefefef.exe' },
         { version: 2, size: 393377976, sha256: 'ab'.repeat(32), createdAt: '2026-10-02T08:00:00Z', downloadCount: 1, archived: false, url: 'https://files.example.invalid/maker/v2-abababab.exe' },
         { version: 1, size: 390000000, sha256: 'cd'.repeat(32), createdAt: '2026-09-30T08:00:00Z', downloadCount: 2, archived: true, url: null },
       ],
@@ -481,7 +532,7 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
 
   // 网页版模板
   if (m === 'GET' && p === 'admin/web-template') {
-    return ok({ chunkBytes: 16 * 1024 * 1024, current: webTemplate })
+    return ok(webTemplateState())
   }
   if (m === 'POST' && p === 'admin/web-template/uploads') {
     const uploadId = Math.random().toString(16).slice(2).padEnd(32, '0').slice(0, 32)
@@ -499,8 +550,15 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
     const size = webUploads[mwt[1]]
     if (size === undefined) return fail(404, 'upload_not_found')
     delete webUploads[mwt[1]]
-    webTemplate = { ...webTemplate, dir: Math.random().toString(16).slice(2, 10), size, createdAt: iso(0) }
-    return ok({ status: 'done', replaced: true, current: webTemplate })
+    const dir = Math.random().toString(16).slice(2, 10)
+    webTemplates.push({ dir, size, fileCount: webFiles.length, files: webFiles, createdAt: iso(0),
+      isCurrent: false, pending: true, retiredAt: iso(0), expiresAt: iso(-7 * 86400000) })
+    return ok({ status: 'done', template: webTemplates.at(-1) })
+  }
+  const mwa = p.match(/^admin\/web-template\/([^/]+)\/activate$/)
+  if (m === 'POST' && mwa) {
+    if (!activateWebTemplate(mwa[1])) return fail(404, 'template_not_found')
+    return ok(webTemplateState())
   }
   const mwl = p.match(/^admin\/campaigns\/([^/]+)\/web-login-required$/)
   if (m === 'PUT' && mwl) {
