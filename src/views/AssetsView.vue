@@ -123,8 +123,9 @@ async function unban(row) {
   load()
 }
 
-async function batch(action) {
-  const picked = selected.value
+// rows 缺省 = 勾选的那些；行里 / 详情里的单个「删除」也走这里
+async function batch(action, rows) {
+  const picked = rows || selected.value
   if (!picked.length) return
   const n = picked.length
   const campaigns = picked.reduce((sum, r) => sum + (r.campaignCount || 0), 0)
@@ -157,6 +158,7 @@ async function batch(action) {
     const res = await api.batchCampaignAssets(picked.map((r) => r.sha256), action, (reason || '').trim())
     const verb = { unlist: '下架', ban: '封禁', delete: '删除' }[action]
     ElMessage.success(action === 'unlist' ? `已下架 ${res.changed} 条分享` : `已${verb} ${res.changed} 个文件`)
+    drawer.value = false
     load()
   } finally {
     acting.value = false
@@ -279,11 +281,12 @@ onMounted(load)
       <el-table-column prop="createdAt" label="上传时间" width="160" sortable="custom">
         <template #default="{ row }">{{ fmtDate(row.createdAt) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="120" fixed="right">
+      <el-table-column label="操作" width="160" fixed="right">
         <template #default="{ row }">
           <el-button v-if="!row.isBanned && row.approvedShareCount" link type="warning" @click.stop="unlist(row)">下架</el-button>
           <el-button v-if="row.isBanned" link type="warning" @click.stop="unban(row)">解封</el-button>
           <el-button v-else link type="danger" @click.stop="ban(row)">封禁</el-button>
+          <el-button v-if="!row.isBanned" link type="danger" @click.stop="batch('delete', [row])">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -325,6 +328,7 @@ onMounted(load)
             </el-button>
             <el-button v-if="detailRow.isBanned" type="warning" @click="unban(detailRow)">解封</el-button>
             <el-button v-else type="danger" @click="ban(detailRow)">封禁素材</el-button>
+            <el-button v-if="!detailRow.isBanned" type="danger" plain @click="batch('delete', [detailRow])">删除素材</el-button>
           </div>
 
           <h4>用到它的战役（{{ detail.campaigns.length }} 个版本）</h4>
