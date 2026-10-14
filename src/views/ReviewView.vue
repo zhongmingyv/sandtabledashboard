@@ -4,10 +4,12 @@
 // 素材（图 / 声 / 乐）按内容哈希存在存储上，同一张图被多个战役引用只存一份；封禁一个素材 = 所有引用它的战役里它都消失。
 // 作者这次勾选分享到资源库的素材带勾选框（待审的默认勾上），放行战役时勾上的一起进资源库，没勾的留在「资源库审核」里。
 import { ref, reactive, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { api } from '../api/admin'
 import { fmtBytes, fmtDate } from '../utils/format'
 
+const route = useRoute()
 const status = ref('pending')
 const loading = ref(false)
 const rows = ref([])
@@ -151,7 +153,24 @@ function kindOf(a) {
   return 'other'
 }
 
-onMounted(load)
+// 从「战役管理」点「去审核」带 ?campaign=<id> 过来：翻待审列表找到这个战役的那一版，直接打开详情
+async function openFromQuery() {
+  const id = route.query.campaign
+  if (!id) return
+  for (;;) {
+    const row = rows.value.find((r) => r.campaignId === id)
+    if (row) return open(row)
+    if (page.value * pageSize.value >= total.value) break
+    page.value++
+    await load()
+  }
+  ElMessage.warning('待审列表里没找到这个战役（可能已经审过了）')
+}
+
+onMounted(async () => {
+  await load()
+  await openFromQuery()
+})
 </script>
 
 <template>

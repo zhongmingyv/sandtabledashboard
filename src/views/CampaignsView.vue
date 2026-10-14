@@ -1,12 +1,13 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { api } from '../api/admin'
 import { fmtBytes, fmtDate } from '../utils/format'
 import { PAGE_SIZE } from '../config'
 
 const route = useRoute()
+const router = useRouter()
 const loading = ref(false)
 const rows = ref([])
 const total = ref(0)
@@ -163,8 +164,17 @@ onMounted(load)
       <el-table-column prop="createdAt" label="上传时间" width="150" sortable="custom">
         <template #default="{ row }">{{ fmtDate(row.createdAt) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="300" fixed="right">
+      <el-table-column label="操作" width="340" fixed="right">
         <template #default="{ row }">
+          <!-- 放行 / 驳回在「战役审核」页，这里直接跳过去打开这一版 -->
+          <el-button
+            v-if="row.approvalStatus === 'pending'"
+            link
+            type="primary"
+            @click="router.push({ name: 'review', query: { campaign: row.id } })"
+          >
+            去审核
+          </el-button>
           <el-button link type="danger" @click="togglePinned(row)">
             {{ row.isPinned ? '取消置顶' : '置顶' }}
           </el-button>
