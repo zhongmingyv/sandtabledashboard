@@ -3,17 +3,33 @@
 // 看每个文件被哪些战役用到、有没有分享到资源库；按文件封禁 = 文件当场删，所有用到它的战役里它一起消失、资源库里指向它的分享一起下架。
 // 解封 = 撤掉墓碑：文件已经删了不会回来，作者重新发布时补传。取代老图床管理页（老图床 2026-10-13 整个拆掉）。
 // 注意这里是「所有战役用到的文件」，比 Maker 资源商店多得多：商店只有作者勾选分享、且审核通过（资源库已上架）的那些。
-import { ref, reactive, onMounted } from 'vue'
+// 分类（类型 / 层 / 显示方式 / UI 种类）是 Maker 发布时给每个文件报的，同资源库口径；老 Maker 发的包没报 = 「未分类」，
+// 作者用新版重发一次就补上。没分享过的文件可以「分享」：代作者放进资源库、当场上架，分享人记那一版战役的上传者。
+import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Picture, Headset, VideoPlay } from '@element-plus/icons-vue'
 import { api } from '../api/admin'
 import { fmtBytes, fmtDate } from '../utils/format'
+import { kinds, layers, modes, uiKinds, usageText } from '../utils/assetTags'
 import { PAGE_SIZE } from '../config'
 
 const loading = ref(false)
 const rows = ref([])
 const total = ref(0)
-const query = reactive({ kind: '', status: '', q: '', sort: 'createdAt', order: 'desc', page: 1 })
+const query = reactive({
+  kind: '', classified: '', layer: '', mode: '', ui: '', status: '', q: '', sort: 'createdAt', order: 'desc', page: 1,
+})
+
+// 显示方式只有地图层的样式才有（同 Maker 资源库下拉的联动）
+const MODE_LAYERS = ['', 'height', 'terrain', 'edge', 'road', 'object', 'region']
+const modeDisabled = computed(() => !MODE_LAYERS.includes(query.layer))
+
+function onLayerChange() {
+  if (modeDisabled.value) query.mode = ''
+  search()
+}
+
+const kindText = (k) => kinds[k] || (k === 'audio' ? '音频' : k)
 const selected = ref([])
 const acting = ref(false)
 
@@ -123,6 +139,51 @@ async function unban(row) {
   load()
 }
 
+// 代作者分享：先拉详情拿「能记在谁名下」（用到它的各版战役的上传者，各带他那一版里的文件名与用法），选一个、可改名
+const shareDialog = ref(false)
+const shareRow = ref(null)
+const shareCandidates = ref([])
+const shareForm = reactive({ ownerPlayerId: '', name: '' })
+const shareLoading = ref(false)
+const sharing = ref(false)
+const shareCandidate = computed(() => shareCandidates.value.find((c) => c.ownerPlayerId === shareForm.ownerPlayerId))
+
+async function openShare(row) {
+  shareRow.value = row
+  shareCandidates.value = []
+  shareForm.ownerPlayerId = ''
+  shareForm.name = ''
+  shareDialog.value = true
+  shareLoading.value = true
+  try {
+    const d = await api.campaignAsset(row.sha256)
+    shareCandidates.value = d.shareCandidates || []
+    const first = shareCandidates.value[0]
+    if (first) pickOwner(first.ownerPlayerId)
+  } finally {
+    shareLoading.value = false
+  }
+}
+
+function pickOwner(id) {
+  shareForm.ownerPlayerId = id
+  shareForm.name = shareCandidate.value?.name || ''
+}
+
+async function confirmShare() {
+  if (!shareForm.ownerPlayerId) return
+  sharing.value = true
+  try {
+    const res = await api.shareCampaignAsset(shareRow.value.sha256, shareForm.ownerPlayerId, shareForm.name.trim())
+    ElMessage.success(`已分享到资源库：${res.name}`)
+    shareDialog.value = false
+    drawer.value = false
+    load()
+  } finally {
+    sharing.value = false
+  }
+}
+
 // rows 缺省 = 勾选的那些；行里 / 详情里的单个「删除」也走这里
 async function batch(action, rows) {
   const picked = rows || selected.value
@@ -179,9 +240,24 @@ onMounted(load)
     <div class="page-toolbar">
       <el-select v-model="query.kind" style="width: 110px" @change="search">
         <el-option label="全部类型" value="" />
-        <el-option label="图片" value="image" />
-        <el-option label="声音" value="audio" />
-        <el-option label="视频" value="video" />
+        <el-option v-for="(label, k) in kinds" :key="k" :label="label" :value="k" />
+      </el-select>
+      <el-select v-model="query.layer" style="width: 110px" @change="onLayerChange">
+        <el-option label="全部层" value="" />
+        <el-option v-for="(label, k) in layers" :key="k" :label="label" :value="k" />
+      </el-select>
+      <el-select v-model="query.mode" style="width: 130px" :disabled="modeDisabled" @change="search">
+        <el-option label="全部显示方式" value="" />
+        <el-option v-for="(label, k) in modes" :key="k" :label="label" :value="k" />
+      </el-select>
+      <el-select v-model="query.ui" style="width: 120px" @change="search">
+        <el-option label="全部 UI 组件" value="" />
+        <el-option v-for="(label, k) in uiKinds" :key="k" :label="label" :value="k" />
+      </el-select>
+      <el-select v-model="query.classified" style="width: 120px" @change="search">
+        <el-option label="分类与否" value="" />
+        <el-option label="已分类" value="yes" />
+        <el-option label="未分类（老包）" value="no" />
       </el-select>
       <el-select v-model="query.status" style="width: 170px" @change="search">
         <el-option label="全部（含封禁）" value="" />
@@ -256,8 +332,20 @@ onMounted(load)
       </el-table-column>
       <el-table-column label="文件" min-width="200">
         <template #default="{ row }">
-          <div v-if="row.shareName"><strong>{{ row.shareName }}</strong></div>
+          <div v-if="row.name || row.shareName"><strong>{{ row.name || row.shareName }}</strong></div>
           <code style="font-size: 12px; color: #909399" :title="row.sha256">{{ row.sha256.slice(0, 16) }}…{{ row.ext }}</code>
+        </template>
+      </el-table-column>
+      <el-table-column label="分类" min-width="200">
+        <template #default="{ row }">
+          <el-tag size="small" effect="plain" style="margin: 0 4px 4px 0">{{ kindText(row.kind) }}</el-tag>
+          <template v-if="row.classified">
+            <el-tag v-for="(u, i) in row.usages" :key="i" size="small" type="info" style="margin: 0 4px 4px 0">{{ usageText(u) }}</el-tag>
+            <span v-if="!row.usages.length" style="color: #c0c4cc; font-size: 12px">没有用法</span>
+          </template>
+          <el-tooltip v-else content="老 Maker 发的包没报分类，作者用新版重发一次就补上；类型是按扩展名猜的" placement="top">
+            <span style="color: #c0c4cc; font-size: 12px">未分类</span>
+          </el-tooltip>
         </template>
       </el-table-column>
       <el-table-column prop="size" label="大小" width="100" sortable="custom">
@@ -281,8 +369,11 @@ onMounted(load)
       <el-table-column prop="createdAt" label="上传时间" width="160" sortable="custom">
         <template #default="{ row }">{{ fmtDate(row.createdAt) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="160" fixed="right">
+      <el-table-column label="操作" width="200" fixed="right">
         <template #default="{ row }">
+          <el-tooltip v-if="!row.isBanned && !row.shareCount" :disabled="row.classified" content="未分类的文件分享不了：作者用新版 Maker 重发后才有文件名和用法" placement="top">
+            <span><el-button link type="primary" :disabled="!row.classified" @click.stop="openShare(row)">分享</el-button></span>
+          </el-tooltip>
           <el-button v-if="!row.isBanned && row.approvedShareCount" link type="warning" @click.stop="unlist(row)">下架</el-button>
           <el-button v-if="row.isBanned" link type="warning" @click.stop="unban(row)">解封</el-button>
           <el-button v-else link type="danger" @click.stop="ban(row)">封禁</el-button>
@@ -308,6 +399,49 @@ onMounted(load)
       />
     </div>
 
+    <el-dialog v-model="shareDialog" title="分享到资源库" width="520px">
+      <div v-loading="shareLoading">
+        <el-alert type="warning" :closable="false" show-icon style="margin-bottom: 12px">
+          <template #title>
+            分享后当场上架，Maker 资源商店里人人可下。分享人记作者本人，他在「我的分享」里看得到、能撤回。确认这张图可以公开再点。
+          </template>
+        </el-alert>
+        <template v-if="shareCandidates.length">
+          <el-form label-width="80px">
+            <el-form-item label="分享人">
+              <el-select :model-value="shareForm.ownerPlayerId" style="width: 100%" @change="pickOwner">
+                <el-option
+                  v-for="c in shareCandidates"
+                  :key="c.ownerPlayerId"
+                  :label="`${c.ownerName}（${c.campaignTitle} 第 ${c.gameVersion} 版）`"
+                  :value="c.ownerPlayerId"
+                />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="名字">
+              <el-input v-model="shareForm.name" maxlength="120" placeholder="作者工程里的文件名" />
+            </el-form-item>
+            <el-form-item v-if="shareCandidate" label="分类">
+              <el-tag size="small" effect="plain" style="margin: 0 4px 4px 0">{{ kindText(shareCandidate.kind) }}</el-tag>
+              <el-tag v-for="(u, i) in shareCandidate.usages" :key="i" size="small" type="info" style="margin: 0 4px 4px 0">{{ usageText(u) }}</el-tag>
+              <span v-if="shareCandidate.hasGrid" style="color: #909399; font-size: 12px">已切格（切法一起带上）</span>
+            </el-form-item>
+            <el-alert
+              v-if="shareCandidate?.existingShareStatus"
+              type="info"
+              :closable="false"
+              :title="`他已经分享过这张图（${shareStatus[shareCandidate.existingShareStatus] || shareCandidate.existingShareStatus}），确认后会改成这次的名字并直接上架。`"
+            />
+          </el-form>
+        </template>
+        <el-empty v-else-if="!shareLoading" description="没有可记名的作者：用到它的战役都是老 Maker 发的（没报分类），或战役已删" />
+      </div>
+      <template #footer>
+        <el-button @click="shareDialog = false">取消</el-button>
+        <el-button type="primary" :loading="sharing" :disabled="!shareForm.ownerPlayerId" @click="confirmShare">分享并上架</el-button>
+      </template>
+    </el-dialog>
+
     <el-drawer v-model="drawer" size="50%" title="素材详情">
       <div v-loading="detailLoading">
         <template v-if="detail && detailRow">
@@ -323,6 +457,9 @@ onMounted(load)
           </el-descriptions>
 
           <div style="margin: 12px 0">
+            <el-button v-if="!detailRow.isBanned && detailRow.classified && detail.shareCandidates?.some((c) => !c.existingShareStatus)" type="primary" @click="openShare(detailRow)">
+              分享到资源库
+            </el-button>
             <el-button v-if="!detailRow.isBanned && detailRow.approvedShareCount" type="warning" @click="unlist(detailRow)">
               从资源库下架
             </el-button>
@@ -341,6 +478,15 @@ onMounted(load)
             </el-table-column>
             <el-table-column label="版本" width="90">
               <template #default="{ row }">第 {{ row.gameVersion }} 版</template>
+            </el-table-column>
+            <el-table-column label="这一版里叫什么、怎么用" min-width="200">
+              <template #default="{ row }">
+                <template v-if="row.kind">
+                  <div>{{ row.name }}</div>
+                  <el-tag v-for="(u, i) in row.usages" :key="i" size="small" type="info" style="margin: 0 4px 4px 0">{{ usageText(u) }}</el-tag>
+                </template>
+                <span v-else style="color: #c0c4cc">未分类</span>
+              </template>
             </el-table-column>
             <el-table-column label="这一版" width="130">
               <template #default="{ row }">

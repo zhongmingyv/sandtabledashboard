@@ -4,6 +4,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Picture, Headset, VideoPlay } from '@element-plus/icons-vue'
 import { api } from '../api/admin'
 import { fmtBytes, fmtDate } from '../utils/format'
+import { kinds, layers, usageText } from '../utils/assetTags'
 import { PAGE_SIZE } from '../config'
 
 // 资源库审核（ADR-0016）：作者发布战役时勾选分享的素材，每条分享一行（同一张图可以被好几个人各分享一条）。
@@ -18,25 +19,12 @@ const acting = ref(false)
 
 const query = reactive({ status: 'pending', kind: '', layer: '', q: '', page: 1 })
 
-const kinds = { image: '图片', sound: '声音', music: '音乐', video: '视频' }
-const layers = {
-  background: '背景', height: '高度', terrain: '地形', edge: '边', road: '路', object: '对象',
-  region: '区域', ui: 'UI', effect: '特效', other: '其它',
-}
-const modes = { image: '图片', random: '随机', chain: '接龙', connect: '连接件', anim: '序列帧', water: '水面' }
 const statusText = { pending: '待审', approved: '已上架', rejected: '被拒' }
 const statusType = { pending: 'warning', approved: 'success', rejected: 'info' }
 
 // 点过「试听 / 播放」才挂播放器，免得一进页面就连一串文件地址
 const mediaOn = reactive({})
 const thumbError = reactive({})
-
-function usageText(u) {
-  let t = layers[u.layer] || u.layer
-  if (u.mode) t += '·' + (modes[u.mode] || u.mode)
-  if (u.ui) t += '·' + u.ui
-  return t
-}
 
 async function load() {
   loading.value = true

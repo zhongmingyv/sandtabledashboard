@@ -56,6 +56,8 @@ export const api = {
   unlistCampaignAsset: (sha, reason = '') => http.post(`/admin/campaign-assets/${sha}/unlist`, { reason }),
   // action：unlist（下架）| ban（封禁，留墓碑拦再传）| delete（删除，不留墓碑）
   batchCampaignAssets: (shas, action, reason = '') => http.post('/admin/campaign-assets/batch', { shas, action, reason }),
+  // 代作者分享进资源库（当场上架）：ownerPlayerId 取详情里 shareCandidates 的一个；name 空 = 作者工程里的文件名
+  shareCampaignAsset: (sha, ownerPlayerId, name = '') => http.post(`/admin/campaign-assets/${sha}/share`, { ownerPlayerId, name }),
 
   // 配置
   settings: () => http.get('/admin/settings'),

@@ -175,10 +175,25 @@ function fakeSha(seed) {
   return s
 }
 const assetExts = ['.png', '.png', '.jpg', '.ogg', '.png', '.ogv']
+// 分类：每 5 个里一个是老包（未分类），其余轮着给几种用法
+const assetUsages = [
+  [{ layer: 'terrain', mode: 'random', ui: '' }],
+  [{ layer: 'object', mode: 'image', ui: '' }, { layer: 'ui', mode: '', ui: 'button' }],
+  [{ layer: 'edge', mode: 'chain', ui: '' }],
+  [{ layer: 'background', mode: '', ui: '' }],
+  [{ layer: 'effect', mode: '', ui: '' }],
+]
+const kindOfAssetExt = (ext, i) =>
+  ['.ogv'].includes(ext) ? 'video' : ext === '.ogg' ? (i % 2 ? 'music' : 'sound') : ext ? 'image' : ''
 const campaignAssets = Array.from({ length: 30 }, (_, i) => {
   const ext = assetExts[i % assetExts.length]
   const banned = i === 4 || i === 17
+  const classified = i % 5 !== 2 && !banned
   return {
+    classified,
+    name: classified ? `素材${i + 1}${ext}` : '',
+    kind: classified ? kindOfAssetExt(ext, i) : ext === '.ogg' ? 'audio' : kindOfAssetExt(ext, i),
+    usages: classified ? (ext === '.ogg' ? [{ layer: 'background', mode: '', ui: '' }] : assetUsages[i % assetUsages.length]) : [],
     sha256: fakeSha(i + 1),
     size: Math.floor((20 + rand(i + 2) * 3000) * 1024),
     ext: banned && i === 17 ? '' : ext,
@@ -614,10 +629,12 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
   }
 
   // 素材管理
-  const kindExts = { image: ['.png', '.jpg', '.jpeg', '.webp'], audio: ['.ogg', '.wav', '.mp3'], video: ['.ogv', '.mp4', '.webm'] }
   if (m === 'GET' && p === 'admin/campaign-assets') {
     let rows = campaignAssets.filter((x) =>
-      (!params.kind || (kindExts[params.kind] || []).includes(x.ext)) &&
+      (!params.kind || x.kind === params.kind || (x.kind === 'audio' && ['sound', 'music'].includes(params.kind))) &&
+      (!params.classified || x.classified === (params.classified === 'yes')) &&
+      (!(params.layer || params.mode || params.ui) || x.usages.some((u) =>
+        (!params.layer || u.layer === params.layer) && (!params.mode || u.mode === params.mode) && (!params.ui || u.ui === params.ui))) &&
       (params.status === 'active' ? !x.isBanned : params.status === 'banned' ? x.isBanned : params.status === 'shared' ? x.shareCount > 0 :
         params.status === 'listed' ? x.approvedShareCount > 0 : params.status === 'sharePending' ? x.pendingShareCount > 0 : true) &&
       (!params.q || x.sha256.startsWith(String(params.q).toLowerCase()) || contains(x.shareName, params.q)))
@@ -650,12 +667,29 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
       campaigns: campaigns.slice(0, x.campaignCount).map((c, i) => ({
         campaignId: c.id, title: c.title, campaignBanned: !!c.isBanned, gameVersion: 1 + i,
         status: 'approved', isLive: true, isPending: false,
+        name: x.name, kind: x.classified ? x.kind : '', usages: x.usages, uploaderName: users[i % users.length].displayName,
       })),
+      shareCandidates: x.classified
+        ? campaigns.slice(0, x.campaignCount).map((c, i) => ({
+          ownerPlayerId: users[i % users.length].playerId, ownerName: users[i % users.length].displayName,
+          campaignTitle: c.title, gameVersion: 1 + i, name: x.name, kind: x.kind, usages: x.usages,
+          hasGrid: x.ext === '.png', existingShareStatus: i < x.shareCount ? 'pending' : '',
+        }))
+        : [],
       shares: Array.from({ length: x.shareCount }, (_, i) => ({
         id: `s${i}`, name: x.shareName, status: i < x.approvedShareCount ? 'approved' : 'pending', rejectReason: '',
         ownerName: users[i % users.length].displayName, createdAt: x.createdAt, downloadCount: i * 3,
       })),
     })
+  }
+  ma = p.match(/^admin\/campaign-assets\/([0-9a-f]{64})\/share$/)
+  if (m === 'POST' && ma) {
+    const x = campaignAssets.find((r) => r.sha256 === ma[1])
+    if (!x) return fail(404, 'campaign_asset_not_found')
+    if (!x.classified) return fail(409, 'asset_not_classified')
+    const name = (data?.name || '').trim() || x.name
+    Object.assign(x, { shareCount: x.shareCount + 1, approvedShareCount: x.approvedShareCount + 1, shareName: x.shareName || name })
+    return ok({ ok: true, sha256: x.sha256, ownerPlayerId: data?.ownerPlayerId, name })
   }
   ma = p.match(/^admin\/campaign-assets\/([0-9a-f]{64})\/(ban|unban|unlist)$/)
   if (m === 'POST' && ma) {
