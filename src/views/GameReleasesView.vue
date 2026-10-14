@@ -1,6 +1,6 @@
 <script setup>
-// 游戏版本：编辑器「导出独立版」出来的游戏，整个目录打成 zip 传上来，就成为该游戏的最新版。
-// 玩家打开游戏时问服务器「最新是几版」，比自己新就弹窗提示下载。
+// 游戏版本：编辑器「导出独立版」打的 zip（exe + data）由浏览器直接传给 R2（不经服务器），就成为该游戏的最新版。
+// 玩家打开游戏时问服务器「最新是几版」，比自己新就弹窗提示下载；低于本页设的「最低版本」= 强制升级，不更新不让玩。
 // 版本号与游戏身份都烙在包里的 data/server.json，服务器照读、这里不让填——
 // 填的号与包里的不一致，玩家装完仍自认旧版，每次启动都要再下一遍。
 import { ref, computed, onMounted } from 'vue'
@@ -12,9 +12,10 @@ const loading = ref(false)
 const rows = ref([])
 const uploading = ref(false)
 const progress = ref(0)
-// 传完之后服务器登记的阶段（空 = 还在传）
+// 进度条之外要显示的一句话（算校验值 / 服务器处理到哪一步）；空 = 正在传，显示进度条
 const stage = ref('')
 const fileInput = ref(null)
+const minVersions = ref({})
 const lastResult = ref(null)
 const lastError = ref('')
 
@@ -30,6 +31,7 @@ const groups = computed(() => {
     gameId,
     title: versions[0].title,
     latest: versions.find((v) => !v.archived) || null,
+    minVersion: minVersions.value[gameId] || 0,
     hasCampaign: versions.some((v) => v.hasCampaign),
     versions,
     totalDownloads: versions.reduce((s, v) => s + (v.downloadCount || 0), 0),
@@ -39,7 +41,9 @@ const groups = computed(() => {
 async function load() {
   loading.value = true
   try {
-    rows.value = (await api.gameReleases()).items
+    const res = await api.gameReleases()
+    rows.value = res.items
+    minVersions.value = res.minVersions || {}
   } finally {
     loading.value = false
   }
@@ -63,13 +67,13 @@ async function upload(e) {
   lastResult.value = null
   lastError.value = ''
   try {
-    const res = await api.uploadGamePackage(
+    const res = await api.uploadGameDirect(
       file,
       (sent, total) => {
         progress.value = Math.floor((sent * 100) / total)
       },
       (s) => {
-        stage.value = s || '处理中'
+        stage.value = s
       },
     )
     lastResult.value = res
@@ -78,11 +82,29 @@ async function upload(e) {
     )
     load()
   } catch (err) {
-    lastError.value = err?.response?.data?.message || err?.response?.data?.error || '上传失败'
+    lastError.value = err?.response?.data?.message || err?.response?.data?.error || err?.message || '上传失败'
   } finally {
     uploading.value = false
     stage.value = ''
   }
+}
+
+// 改某个游戏的「最低版本」（强制升级线）；0 = 取消强制
+async function setMinVersion(g, version) {
+  try {
+    await ElMessageBox.confirm(
+      version
+        ? `低于第 ${version} 版的「${g.title}」一打开就被挡住，必须下完新版才能继续玩。继续？（更新功能里认这一项之前导出的老版本不会被挡，只照旧提示有新版）`
+        : `取消强制后，旧版「${g.title}」照常能玩（仍会提示有新版）。继续？`,
+      version ? '设最低版本' : '取消强制',
+      { type: 'warning' },
+    )
+  } catch {
+    return
+  }
+  await api.setGameMinVersion(g.gameId, version)
+  ElMessage.success('已保存')
+  load()
 }
 
 // 「发布战役」：拿当前那一版整包补建战役（整包登记早于战役同步的老版本才会缺）
@@ -129,8 +151,10 @@ onMounted(load)
   <div>
     <el-alert type="info" :closable="false" show-icon style="margin-bottom: 12px">
       <template #title>
-        在编辑器「导出独立版」时填好服务器地址与版本号（可勾「同时打一个 zip」），把 zip 传到这里就成为该游戏的最新版。
-        版本号从包里读，不用填；比已有最新版还旧的包会被拒。玩家打开旧版游戏时会提示下载。
+        在编辑器「导出独立版」时填好服务器地址与版本号、勾上「同时打一个 zip」，把那个 zip 传到这里：
+        浏览器直接传给 R2，不经服务器。传上来就成为该游戏的最新版。
+        版本号从包里读，不用填；比已有最新版还旧的包会被拒。玩家打开旧版游戏时会提示下载；
+        低于「最低版本」的一打开就被挡住、必须更新（每个游戏各设各的）。
         只保留最新一版：传了新版，旧版的文件就清掉（只留下载次数记录）；战役管理里那条战役同时换成新版本。
         官方游戏与 Maker 彻底分开：只有导出的游戏能联机，Maker 的战役列表与房间列表里看不到它；
         服务器仍会把游戏数据拆成战役包与素材存着，只给 GM 审举报用。
@@ -140,12 +164,8 @@ onMounted(load)
     <div class="page-toolbar">
       <input ref="fileInput" type="file" accept=".zip" style="display: none" @change="upload" />
       <el-button type="primary" :loading="uploading" @click="pick">上传新版本</el-button>
-      <el-progress
-        v-if="uploading && !stage"
-        :percentage="progress"
-        style="width: 280px"
-      />
-      <span v-if="uploading && stage" style="color: #909399">已传完，服务器正在处理：{{ stage }}……</span>
+      <el-progress v-if="uploading && !stage" :percentage="progress" style="width: 280px" />
+      <span v-if="uploading && stage" style="color: #909399">{{ stage }}……</span>
       <div class="spacer" />
       <el-button @click="load">刷新</el-button>
     </div>
@@ -175,6 +195,18 @@ onMounted(load)
           <strong>{{ g.title }}</strong>
           <el-tag v-if="g.latest" type="success">最新：第 {{ g.latest.version }} 版</el-tag>
           <el-tag v-else type="warning">暂无可下载的版本</el-tag>
+          <el-tag v-if="g.minVersion" type="danger">低于第 {{ g.minVersion }} 版的强制升级</el-tag>
+          <el-tag v-else type="info">不强制</el-tag>
+          <el-button
+            v-if="g.latest && g.minVersion !== g.latest.version"
+            size="small"
+            type="danger"
+            plain
+            @click="setMinVersion(g, g.latest.version)"
+          >
+            强制升级到第 {{ g.latest.version }} 版
+          </el-button>
+          <el-button v-if="g.minVersion" size="small" @click="setMinVersion(g, 0)">取消强制</el-button>
           <el-tag v-if="g.hasCampaign" type="success" effect="plain">已发布战役</el-tag>
           <el-button
             v-if="!g.hasCampaign"

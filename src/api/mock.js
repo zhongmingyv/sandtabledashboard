@@ -61,6 +61,28 @@ const gameReleases = [
   { gameId: 'camp_' + 'a'.repeat(32), version: 1, title: '赤壁', size: 140 * 1024 * 1024, sha256: 'c'.repeat(64), createdAt: iso(9 * 86400000), downloadCount: 112, archived: true },
 ]
 const gameUploads = {}
+// 各游戏的最低版本（强制升级线）
+const gameMinVersions = {}
+
+// 登记一版游戏整包（分片上传与直传共用）：成为最新版、旧版清掉只留记录、同步战役管理那一行
+function registerGameMock(size) {
+  const latest = gameReleases[0]
+  const row = { ...latest, version: latest.version + 1, size, sha256: 'd'.repeat(64), createdAt: iso(0), downloadCount: 0, archived: false }
+  gameReleases.forEach((r) => { if (r.gameId === row.gameId) r.archived = true })
+  gameReleases.unshift(row)
+  let camp = campaigns.find((c) => c.gameId === row.gameId)
+  const campaignCreated = !camp
+  if (!camp) {
+    camp = {
+      ...campaigns[2], id: 'c' + String(campaigns.length + 1).padStart(4, '0'), gameId: row.gameId,
+      title: row.title, ownerName: '官方发布', workshopItemId: '', downloadCount: 0,
+      isDeleted: false, isBanned: false, approvalStatus: 'approved', createdAt: iso(0),
+    }
+    campaigns.unshift(camp)
+  }
+  camp.gameVersion = row.version
+  return ok({ status: 'done', ...row, campaignId: camp.id, campaignCreated })
+}
 
 // 网页版模板：所有战役共用一份。mock 下没有真包可读，上传完成时换一个标识
 const webFiles = ['index.html', 'index.js', 'index.wasm', 'index.pck', 'index.png', 'index.icon.png']
@@ -478,6 +500,7 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
     const withCampaign = new Set(campaigns.filter((c) => c.gameId && !c.isDeleted).map((c) => c.gameId))
     return ok({
       chunkBytes: 16 * 1024 * 1024,
+      minVersions: { ...gameMinVersions },
       items: gameReleases.map((r) => ({
         ...r,
         hasCampaign: withCampaign.has(r.gameId),
@@ -518,24 +541,23 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
     const size = gameUploads[mg[1]]
     if (size === undefined) return fail(404, 'upload_not_found')
     delete gameUploads[mg[1]]
-    const latest = gameReleases[0]
-    const row = { ...latest, version: latest.version + 1, size, sha256: 'd'.repeat(64), createdAt: iso(0), downloadCount: 0, archived: false }
-    // 整包只留最新一版：同一游戏的旧版文件清掉，只留记录
-    gameReleases.forEach((r) => { if (r.gameId === row.gameId) r.archived = true })
-    gameReleases.unshift(row)
-    // 同步战役管理那一行：按游戏编号原地升级，没有就建一行
-    let camp = campaigns.find((c) => c.gameId === row.gameId)
-    const campaignCreated = !camp
-    if (!camp) {
-      camp = {
-        ...campaigns[2], id: 'c' + String(campaigns.length + 1).padStart(4, '0'), gameId: row.gameId,
-        title: row.title, ownerName: '官方发布', workshopItemId: '', downloadCount: 0,
-        isDeleted: false, isBanned: false, approvalStatus: 'approved', createdAt: iso(0),
-      }
-      campaigns.unshift(camp)
-    }
-    camp.gameVersion = row.version
-    return ok({ ...row, campaignId: camp.id, campaignCreated })
+    return registerGameMock(size)
+  }
+  mg = p.match(/^admin\/game-releases\/direct\/([^/]+)\/complete$/)
+  if (m === 'POST' && mg) {
+    const files = directUploads[mg[1]]
+    if (!files) return fail(404, 'upload_not_found')
+    delete directUploads[mg[1]]
+    return registerGameMock(files[0].size)
+  }
+  mg = p.match(/^admin\/game-releases\/([^/]+)\/min-version$/)
+  if (m === 'PUT' && mg) {
+    const latest = gameReleases.find((r) => r.gameId === mg[1] && !r.archived)
+    const v = Number(data?.version) || 0
+    if (v && (!latest || v > latest.version)) return fail(400, 'version_too_new')
+    if (v) gameMinVersions[mg[1]] = v
+    else delete gameMinVersions[mg[1]]
+    return ok({ ok: true, minVersion: v })
   }
   mg = p.match(/^admin\/game-releases\/([^/]+)\/(\d+)$/)
   if (m === 'DELETE' && mg) {

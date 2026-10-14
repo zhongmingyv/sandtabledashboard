@@ -81,6 +81,9 @@ export const api = {
     return res?.jobId ? waitJob(res, res.jobId, onStage) : res
   },
   uploadGamePackage,
+  uploadGameDirect,
+  // 最低版本（强制升级线）：低于它的游戏一打开就要求更新；0 = 取消强制。不许高于当前最新版
+  setGameMinVersion: (gameId, version) => http.put(`/admin/game-releases/${gameId}/min-version`, { version }),
 
   // 网页版模板：Maker 发版打的 web-template.zip（引擎 + 预编译代码），所有战役共用。
   // 换下来的上一版留着可回滚（activateWebTemplate），更早的 keepDays 天后服务器自己删。
@@ -153,6 +156,21 @@ async function uploadGamePackage(file, onProgress, onStage) {
   const uploadId = await uploadChunks(prefix, file, onProgress)
   const res = await http.post(`${prefix}/${uploadId}/complete`)
   return waitJob(res, uploadId, onStage, prefix)
+}
+
+/**
+ * 直传游戏整包（导出时打的 zip）：浏览器算好 SHA-256，整包分片直接传给 R2（不经服务器）；服务器按范围读包里的目录与 data/
+ * （同步战役要），exe 不下回去，整包在存储里复制到正式位置。
+ * onStage(说明)：算校验值 / 服务器处理各阶段；传的过程中给空串（界面显示进度条）。
+ */
+async function uploadGameDirect(file, onProgress, onStage) {
+  onStage?.('正在计算校验值')
+  const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer())
+  const sha256 = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
+  onStage?.('')
+  const { uploadId, parts } = await directUpload([file], onProgress)
+  const res = await http.post(`/admin/game-releases/direct/${uploadId}/complete`, { parts, sha256 })
+  return waitJob(res, uploadId, serverStage(onStage), '/admin/game-releases/uploads')
 }
 
 /** 分片上传网页版模板并登记（一百多 MB，服务器在后台拆成一个个文件传进存储）。 */
