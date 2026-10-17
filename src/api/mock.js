@@ -329,6 +329,14 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
     u.isBanned = mu[2] === 'ban'
     return ok({ ok: true, isBanned: u.isBanned })
   }
+  mu = p.match(/^admin\/users\/([^/]+)\/reset-password$/)
+  if (m === 'POST' && mu) {
+    const u = users.find((x) => x.playerId === mu[1])
+    if (!u) return fail(404, 'user_not_found')
+    if (u.email.endsWith('@placeholder.invalid')) return fail(400, 'steam_account_no_email')
+    // mock 里假装发信失败，好看到「把密码给管理员」那个分支
+    return ok({ ok: true, emailSent: false, email: u.email, password: 'Mock7kPq2xYz', mailError: 'not_configured' })
+  }
   mu = p.match(/^admin\/users\/([^/]+)\/campaign-quota$/)
   if (m === 'PUT' && mu) {
     const u = users.find((x) => x.playerId === mu[1])

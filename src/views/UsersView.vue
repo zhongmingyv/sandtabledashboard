@@ -52,6 +52,32 @@ async function toggleBan(row) {
   ElMessage.success(banning ? '已封禁' : '已解封')
 }
 
+// Steam 建的号邮箱是占位的，收不到信、也不走密码登录
+const isSteamPlaceholder = (row) => row.email.endsWith('@placeholder.invalid')
+
+async function resetPassword(row) {
+  try {
+    await ElMessageBox.confirm(
+      `给「${row.displayName}」重置密码？会生成一个随机新密码发到 ${row.email}，旧密码立即失效，已登录的设备要重新登录。`,
+      '重置密码',
+      { type: 'warning' },
+    )
+  } catch {
+    return
+  }
+  const res = await api.resetPassword(row.playerId)
+  if (res.emailSent) {
+    ElMessage.success(`已重置，新密码已发到 ${res.email}`)
+    return
+  }
+  await ElMessageBox.alert(
+    `密码已经换了，但邮件没发出去（${res.mailError}）。请把新密码手动转给用户：<br><br>` +
+      `<code style="font-size:18px;user-select:all">${res.password}</code>`,
+    '邮件发送失败',
+    { type: 'warning', dangerouslyUseHTMLString: true, confirmButtonText: '我已记下' },
+  )
+}
+
 async function editCampaignQuota(row) {
   try {
     const { value } = await ElMessageBox.prompt(
@@ -181,7 +207,7 @@ onMounted(load)
       <el-table-column prop="createdAt" label="注册时间" width="150" sortable="custom">
         <template #default="{ row }">{{ fmtDate(row.createdAt) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="420" fixed="right">
+      <el-table-column label="操作" width="490" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" @click="editCampaignQuota(row)">改战役上限</el-button>
           <el-button link type="warning" @click="toggleReviewer(row)">
@@ -192,6 +218,9 @@ onMounted(load)
           </el-button>
           <el-button link type="success" @click="toggleFeaturedMaker(row)">
             {{ row.isFeaturedMaker ? '取消精品制作人' : '设为精品制作人' }}
+          </el-button>
+          <el-button v-if="!isSteamPlaceholder(row)" link type="warning" @click="resetPassword(row)">
+            重置密码
           </el-button>
           <el-button link :type="row.isBanned ? 'success' : 'danger'" @click="toggleBan(row)">
             {{ row.isBanned ? '解封' : '封禁' }}

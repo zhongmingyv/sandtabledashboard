@@ -14,6 +14,8 @@ export const api = {
   users: (params) => http.get('/admin/users', params),
   banUser: (id) => http.post(`/admin/users/${id}/ban`),
   unbanUser: (id) => http.post(`/admin/users/${id}/unban`),
+  // 换随机密码、踢会话、发到注册邮箱；信没发出去时响应里带 password 让管理员手动转达
+  resetPassword: (id) => http.post(`/admin/users/${id}/reset-password`),
   setCampaignQuota: (id, count) => http.put(`/admin/users/${id}/campaign-quota`, { count }),
   setReviewer: (id, isReviewer) => http.put(`/admin/users/${id}/reviewer`, { isReviewer }),
   // GM:Maker 联网模式里出现 GM 页签,下载被举报的对局、本机播一遍、提交结论
