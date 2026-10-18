@@ -24,7 +24,12 @@ const statusType = { pending: 'warning', approved: 'success', rejected: 'info' }
 
 // 点过「试听 / 播放」才挂播放器，免得一进页面就连一串文件地址
 const mediaOn = reactive({})
+// 缩略图是登记完成后服务器才一张张补的，刚分享上来的那会儿还没有：先退回原图，原图也打不开才算文件没了
+// （值：'thumb' = 缩略图打不开、改看原图；true = 原图也打不开）
 const thumbError = reactive({})
+function onThumbError(row) {
+  thumbError[row.id] = row.thumbUrl && !thumbError[row.id] ? 'thumb' : true
+}
 
 async function load() {
   loading.value = true
@@ -154,14 +159,14 @@ onMounted(load)
         <template #default="{ row }">
           <template v-if="row.kind === 'image'">
             <el-image
-              v-if="!thumbError[row.id]"
-              :src="row.thumbUrl || row.url"
+              v-if="thumbError[row.id] !== true"
+              :src="(!thumbError[row.id] && row.thumbUrl) || row.url"
               fit="contain"
               style="width: 64px; height: 64px; background: #f0f2f5; border-radius: 4px"
               :preview-src-list="[row.url]"
               hide-on-click-modal
               preview-teleported
-              @error="thumbError[row.id] = true"
+              @error="onThumbError(row)"
             />
             <div v-else class="preview-ph"><el-icon><Picture /></el-icon><span>文件已删</span></div>
           </template>
