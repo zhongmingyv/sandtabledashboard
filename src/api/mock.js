@@ -113,6 +113,9 @@ function activateWebTemplate(dir) {
 }
 const webUploads = {}
 const directUploads = {}
+const tempFiles = [
+  { id: '0'.repeat(31) + '1', name: '戎机_v70.zip', note: '邮箱版试玩', size: 212345678, createdAt: iso(3600000), expiresAt: new Date(now + 20 * 86400000).toISOString(), downloadCount: 3, expired: false, link: '/d/' + '0'.repeat(31) + '1' },
+]
 
 // 房间：没结束的对局桌。形状 = 玩家端对局详情 + lastOpAt / onlinePlayerIds
 const matches = Array.from({ length: 6 }, (_, i) => {
@@ -465,6 +468,33 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
     webTemplates.push({ dir, size: files.reduce((s, f) => s + f.size, 0), fileCount: names.length, files: names, createdAt: iso(0),
       isCurrent: false, pending: true, retiredAt: iso(0), expiresAt: iso(-7 * 86400000) })
     return ok({ status: 'done', template: webTemplates.at(-1) })
+  }
+
+  // 临时文件
+  const mtc = p.match(/^admin\/temp-files\/direct\/([^/]+)\/complete$/)
+  if (m === 'POST' && mtc) {
+    const files = directUploads[mtc[1]]
+    if (!files) return fail(404, 'upload_not_found')
+    delete directUploads[mtc[1]]
+    const id = Math.random().toString(16).slice(2).padEnd(32, '0').slice(0, 32)
+    const file = { id, name: files[0].name, note: data.note || '', size: files[0].size, createdAt: iso(0),
+      expiresAt: data.expiresAt || null, downloadCount: 0, expired: false, link: `/d/${id}` }
+    tempFiles.unshift(file)
+    return ok({ status: 'done', file })
+  }
+  if (m === 'GET' && p === 'admin/temp-files') return ok({ items: tempFiles })
+  const mtf = p.match(/^admin\/temp-files\/([0-9a-f]{32})$/)
+  if (mtf) {
+    const i = tempFiles.findIndex((f) => f.id === mtf[1])
+    if (i < 0) return fail(404, 'temp_file_not_found')
+    if (m === 'PUT') {
+      Object.assign(tempFiles[i], { note: data.note || '', expiresAt: data.expiresAt || null, expired: false })
+      return ok({ file: tempFiles[i] })
+    }
+    if (m === 'DELETE') {
+      tempFiles.splice(i, 1)
+      return ok({ ok: true })
+    }
   }
 
   // 用户版服务器（只读演示：上传 / 撤下要真服务器）

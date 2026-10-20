@@ -104,6 +104,13 @@ export const api = {
   uploadExe,
   uploadExeDirect,
 
+  // 临时文件：随手发给别人的文件，不进任何版本流程、不影响客户端查新。
+  // 每个文件一条不用登录的链接 link（/d/{id}，相对服务器地址）；expiresAt 空 = 永久，到点链接失效、文件随后由服务器删掉
+  tempFiles: () => http.get('/admin/temp-files'),
+  updateTempFile: (id, note, expiresAt) => http.put(`/admin/temp-files/${id}`, { note, expiresAt }),
+  deleteTempFile: (id) => http.del(`/admin/temp-files/${id}`),
+  uploadTempFile,
+
   // Steam 应用：这台服务器认哪几个 Steam 应用（Maker 本体 + 官方游戏），各用哪把发行商密钥验票、要不要先买。
   // 密钥只写不读：列表只给末 4 位；保存时 webApiKey 留空 = 保留原来那把。
   steamApps: () => http.get('/admin/steam-apps'),
@@ -206,6 +213,13 @@ async function uploadExeDirect(root, file, onProgress, onStage) {
   const { uploadId, parts } = await directUpload([file], onProgress)
   const res = await http.post(`${root}/direct/${uploadId}/complete`, { parts, sha256 })
   return waitJob(res, uploadId, serverStage(onStage), `${root}/uploads`)
+}
+
+/** 直传临时文件：浏览器分片直接传给 R2（不经服务器），服务器挪到正式位置、记一行。返回 { status, file }。 */
+async function uploadTempFile(file, note, expiresAt, onProgress, onStage) {
+  const { uploadId, parts } = await directUpload([file], onProgress)
+  const res = await http.post(`/admin/temp-files/direct/${uploadId}/complete`, { parts, note, expiresAt })
+  return waitJob(res, uploadId, serverStage(onStage), '/admin/temp-files/uploads')
 }
 
 /** 直传网页版模板：打包出来的 web-template 文件夹里的一个个文件分片直接传给 R2，服务器查文件名、登记成待生效。 */
