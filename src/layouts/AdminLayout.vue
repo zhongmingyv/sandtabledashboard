@@ -55,6 +55,7 @@ const menus = [
     group: 'system', title: '系统', icon: 'Setting',
     children: [
       { name: 'settings', title: '全局配置', icon: 'Setting' },
+      { name: 'ai-settings', title: 'AI 设置', icon: 'MagicStick' },
       { name: 'audit', title: '操作审计', icon: 'Document' },
       { name: 'login-logs', title: '登录日志', icon: 'List' },
     ],

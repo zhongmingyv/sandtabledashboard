@@ -71,6 +71,10 @@ export const api = {
   // 配置
   settings: () => http.get('/admin/settings'),
   saveSettings: (items) => http.put('/admin/settings', { items }),
+  // AI 设置：Key 只写不读，这里只拿得到末尾 4 位。测试连接可能要等十几秒
+  aiSettings: () => http.get('/admin/ai-settings'),
+  saveAiSettings: (body) => http.put('/admin/ai-settings', body),
+  testAiSettings: () => http.postSlow('/admin/ai-settings/test', undefined, 60000),
   runBlobGc: () => http.post('/admin/blob-gc/run'),
 
   // 审计

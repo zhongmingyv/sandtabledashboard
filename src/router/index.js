@@ -27,6 +27,7 @@ const routes = [
       { path: 'assets', name: 'assets', component: () => import('../views/AssetsView.vue'), meta: { title: '素材管理' } },
       { path: 'blobs', redirect: { name: 'assets' } }, // 老图床管理页 2026-10-13 下掉，旧书签跳到素材管理
       { path: 'settings', name: 'settings', component: () => import('../views/SettingsView.vue'), meta: { title: '全局配置' } },
+      { path: 'ai-settings', name: 'ai-settings', component: () => import('../views/AiSettingsView.vue'), meta: { title: 'AI 设置' } },
       { path: 'audit', name: 'audit', component: () => import('../views/AuditView.vue'), meta: { title: '操作审计' } },
       { path: 'login-logs', name: 'login-logs', component: () => import('../views/LoginLogsView.vue'), meta: { title: '登录日志' } },
       { path: 'change-password', name: 'change-password', component: () => import('../views/ChangePasswordView.vue'), meta: { title: '修改密码' } },

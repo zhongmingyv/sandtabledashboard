@@ -235,6 +235,7 @@ const campaignAssets = Array.from({ length: 30 }, (_, i) => {
   }
 })
 
+const aiMock = { keyHint: '', baseUrl: '', model: '' }
 const settings = [
   { key: 'campaign.quota', label: '每人能发几款游戏', value: '3', default: '3', unit: '款', type: 'int' },
   { key: 'campaign.maxTotalBytes', label: '每款游戏总容量(所有保留版本合计,同一文件只算一次)', value: String(200 * 1024 * 1024), default: String(200 * 1024 * 1024), unit: '字节', type: 'bytes' },
@@ -509,6 +510,22 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
       ],
     })
   }
+
+  // AI 设置
+  if (p === 'admin/ai-settings' && (m === 'GET' || m === 'PUT')) {
+    if (m === 'PUT') {
+      if (data?.apiKey) aiMock.keyHint = data.apiKey.slice(-4)
+      if (data?.clearKey) aiMock.keyHint = ''
+      aiMock.baseUrl = data?.baseUrl || ''
+      aiMock.model = data?.model || ''
+    }
+    return ok({
+      configured: !!aiMock.keyHint, keySource: aiMock.keyHint ? 'page' : 'none', keyHint: aiMock.keyHint,
+      baseUrl: aiMock.baseUrl, model: aiMock.model,
+      effectiveBaseUrl: aiMock.baseUrl || 'https://api.anthropic.com', effectiveModel: aiMock.model || 'claude-opus-5-5',
+    })
+  }
+  if (m === 'POST' && p === 'admin/ai-settings/test') return ok({ ok: !!aiMock.keyHint, status: 200, message: aiMock.keyHint ? '连接成功。' : '还没有配置 API Key。' })
 
   // 战役的封面与介绍
   if (m === 'PUT' && /^admin\/campaigns\/[^/]+\/cover$/.test(p)) {
