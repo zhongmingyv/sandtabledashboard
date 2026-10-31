@@ -108,6 +108,8 @@ export const api = {
   pluginReleases: () => http.get('/admin/plugin-releases'),
   activatePluginRelease: (id, version) => http.post(`/admin/plugin-releases/${id}/${version}/activate`),
   withdrawPluginRelease: (id, version) => http.del(`/admin/plugin-releases/${id}/${version}`),
+  // 插件说明：官网插件市场显示，按插件存、不跟版本走
+  savePluginDescription: (id, description) => http.put(`/admin/plugin-releases/${id}/description`, { description }),
 
   // 临时文件：随手发给别人的文件，不进任何版本流程、不影响客户端查新。
   // 每个文件一条不用登录的链接 link（/d/{id}，相对服务器地址）；expiresAt 空 = 永久，到点链接失效、文件随后由服务器删掉
