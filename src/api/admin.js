@@ -40,8 +40,8 @@ export const api = {
   deleteCampaignCover: (id) => http.del(`/admin/campaigns/${id}/cover`),
   // 游戏介绍：官网「在线游戏」页显示
   saveCampaignIntro: (id, intro, translations) => http.put(`/admin/campaigns/${id}/intro`, { intro, translations }),
-  // AI 翻译：简体翻成繁体、英文、日文，结果给页面看过再保存
-  translateSiteText: (name, text) => http.postSlow('/admin/translate', { name, text }, 110000),
+  // AI 翻译：简体翻成繁体、英文、日文，结果给页面看过再保存。后台任务 + 轮询，一次可能要一两分钟
+  translateSiteText,
 
   // 房间（没结束的对局桌）
   matches: (params) => http.get('/admin/matches', params),
@@ -154,6 +154,11 @@ export const api = {
   rejectLibrary: (id, reason) => http.post(`/admin/library/${id}/reject`, { reason }),
   // action：approve | reject | ban（ban 按文件封，同 banCampaignAsset）
   batchLibrary: (ids, action, reason = '') => http.post('/admin/library/batch', { ids, action, reason }),
+}
+
+async function translateSiteText(name, text) {
+  const res = await http.post('/admin/translate', { name, text })
+  return waitJob(res, res.jobId, undefined, '/admin/translate')
 }
 
 /** 等后台任务做完：每 2 秒问一次，onStage(阶段说明) 给界面显示，做完返回结果。 */

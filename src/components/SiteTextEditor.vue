@@ -80,5 +80,5 @@ async function translate() {
       </el-form>
     </el-tab-pane>
   </el-tabs>
-  <el-button :loading="busy" @click="translate">{{ busy ? '翻译中，约需半分钟' : 'AI 翻译简体到其余语言' }}</el-button>
+  <el-button :loading="busy" @click="translate">{{ busy ? '翻译中，可能要一两分钟' : 'AI 翻译简体到其余语言' }}</el-button>
 </template>
