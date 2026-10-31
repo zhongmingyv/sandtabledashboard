@@ -104,6 +104,11 @@ export const api = {
   uploadExe,
   uploadExeDirect,
 
+  // 后台发版的 Maker 插件：上传用 uploadExeDirect(root = /admin/plugin-releases)，形状相同
+  pluginReleases: () => http.get('/admin/plugin-releases'),
+  activatePluginRelease: (id, version) => http.post(`/admin/plugin-releases/${id}/${version}/activate`),
+  withdrawPluginRelease: (id, version) => http.del(`/admin/plugin-releases/${id}/${version}`),
+
   // 临时文件：随手发给别人的文件，不进任何版本流程、不影响客户端查新。
   // 每个文件一条不用登录的链接 link（/d/{id}，相对服务器地址）；expiresAt 空 = 永久，到点链接失效、文件随后由服务器删掉
   tempFiles: () => http.get('/admin/temp-files'),

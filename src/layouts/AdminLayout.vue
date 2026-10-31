@@ -40,6 +40,7 @@ const menus = [
       { name: 'web-template', title: '网页版模板', icon: 'Platform' },
       { name: 'maker-releases', title: 'Maker 版本', icon: 'Monitor' },
       { name: 'lan-server-releases', title: '用户版服务器', icon: 'Cpu' },
+      { name: 'plugin-releases', title: '插件版本', icon: 'Box' },
       { name: 'temp-files', title: '临时文件', icon: 'Link' },
     ],
   },

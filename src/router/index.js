@@ -21,6 +21,7 @@ const routes = [
       { path: 'license-orders', name: 'license-orders', component: () => import('../views/LicenseOrdersView.vue'), meta: { title: '激活码订单' } },
       { path: 'maker-releases', name: 'maker-releases', component: () => import('../views/ExeReleasesView.vue'), props: { product: 'maker' }, meta: { title: 'Maker 版本' } },
       { path: 'lan-server-releases', name: 'lan-server-releases', component: () => import('../views/ExeReleasesView.vue'), props: { product: 'lanServer' }, meta: { title: '用户版服务器' } },
+      { path: 'plugin-releases', name: 'plugin-releases', component: () => import('../views/PluginReleasesView.vue'), meta: { title: '插件版本' } },
       { path: 'temp-files', name: 'temp-files', component: () => import('../views/TempFilesView.vue'), meta: { title: '临时文件' } },
       { path: 'arenas', name: 'arenas', component: () => import('../views/ArenasView.vue'), meta: { title: '擂台' } },
       { path: 'assets', name: 'assets', component: () => import('../views/AssetsView.vue'), meta: { title: '素材管理' } },
