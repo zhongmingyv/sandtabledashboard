@@ -94,10 +94,80 @@ async function setWebLogin(row, on) {
   row.webLoginRequired = on
   ElMessage.success(on ? '网页版改为要先登录' : '网页版不用登录')
 }
+
+// 官网「在线游戏」页的封面与介绍：都在一个窗口里改。封面选好就传，介绍点保存才写
+const coverInput = ref(null)
+const showcase = ref(null) // 正在编辑的那一行；null = 没开窗口
+const introText = ref('')
+const coverBusy = ref(false)
+const introBusy = ref(false)
+
+function openShowcase(row) {
+  introText.value = row.intro || ''
+  showcase.value = row
+}
+
+function pickCover() {
+  coverInput.value.value = '' // 清掉上次选的，同一个文件才能再选一次
+  coverInput.value.click()
+}
+
+async function saveIntro() {
+  const row = showcase.value
+  introBusy.value = true
+  try {
+    const res = await api.saveCampaignIntro(row.id, introText.value)
+    row.intro = res.intro
+    ElMessage.success('介绍已保存，官网刷新后可见')
+    showcase.value = null
+  } catch (err) {
+    ElMessage.error(err?.response?.data?.message || err?.response?.data?.error || '保存失败')
+  } finally {
+    introBusy.value = false
+  }
+}
+
+async function uploadCover(e) {
+  const file = e.target.files?.[0]
+  const row = showcase.value
+  if (!file || !row) return
+  if (file.size > 5 * 1024 * 1024) {
+    ElMessage.error('封面不能超过 5 MB')
+    return
+  }
+  coverBusy.value = true
+  try {
+    const res = await api.uploadCampaignCover(row.id, file)
+    row.coverUrl = res.coverUrl
+    ElMessage.success('封面已更新，官网刷新后可见')
+  } catch (err) {
+    ElMessage.error(err?.response?.data?.message || err?.response?.data?.error || '上传失败')
+  } finally {
+    coverBusy.value = false
+  }
+}
+
+async function deleteCover(row) {
+  try {
+    await ElMessageBox.confirm(`删除「${row.title}」的封面？`, '删除封面', { type: 'warning' })
+  } catch {
+    return
+  }
+  await api.deleteCampaignCover(row.id)
+  row.coverUrl = null
+  ElMessage.success('封面已删除')
+}
 onMounted(load)
 </script>
 
 <template>
+  <input
+    ref="coverInput"
+    type="file"
+    accept="image/png,image/jpeg"
+    style="display: none"
+    @change="uploadCover"
+  />
   <div>
     <div class="page-toolbar">
       <el-input v-model="query.owner" placeholder="上传者 playerId" clearable style="width: 180px" @keyup.enter="search" @clear="search" />
@@ -152,6 +222,20 @@ onMounted(load)
       <el-table-column prop="ownerName" label="上传者" width="120" />
       <el-table-column prop="era" label="年代" width="90" />
       <el-table-column prop="downloadCount" label="下载" width="90" sortable="custom" />
+      <el-table-column label="官网展示" width="150">
+        <template #default="{ row }">
+          <img
+            v-if="row.coverUrl"
+            :src="row.coverUrl"
+            alt="封面"
+            style="width: 128px; height: 72px; object-fit: cover; border-radius: 4px; display: block"
+          />
+          <div v-if="row.intro" style="color: #909399; font-size: 12px">有介绍</div>
+          <el-button link type="primary" @click="openShowcase(row)">
+            {{ row.coverUrl || row.intro ? '编辑封面和介绍' : '添加封面和介绍' }}
+          </el-button>
+        </template>
+      </el-table-column>
       <el-table-column label="网页版要登录" width="110">
         <template #default="{ row }">
           <el-switch :model-value="row.webLoginRequired" @change="(v) => setWebLogin(row, v)" />
@@ -197,6 +281,48 @@ onMounted(load)
       <el-pagination layout="prev, pager, next" :total="total" :page-size="PAGE_SIZE" :current-page="query.page" @current-change="(p) => { query.page = p; load() }" />
     </div>
   </div>
+
+  <el-dialog :model-value="!!showcase" :title="`官网展示：${showcase?.title || ''}`" width="560px" @close="showcase = null">
+    <template v-if="showcase">
+      <div style="font-weight: 600; margin-bottom: 8px">封面</div>
+      <div style="display: flex; gap: 16px; align-items: flex-start; margin-bottom: 20px">
+        <img
+          v-if="showcase.coverUrl"
+          :src="showcase.coverUrl"
+          alt="封面"
+          style="width: 240px; height: 135px; object-fit: cover; border-radius: 4px"
+        />
+        <div
+          v-else
+          style="width: 240px; height: 135px; border-radius: 4px; background: #f0f2f5; color: #909399; display: flex; align-items: center; justify-content: center"
+        >
+          还没有封面
+        </div>
+        <div>
+          <el-button type="primary" :loading="coverBusy" @click="pickCover">
+            {{ showcase.coverUrl ? '更换图片' : '上传图片' }}
+          </el-button>
+          <el-button v-if="showcase.coverUrl" type="danger" plain @click="deleteCover(showcase)">删除</el-button>
+          <p style="color: #909399; font-size: 12px; margin: 8px 0 0">
+            选好就直接上传。16:9，建议 1280×720，PNG 或 JPEG，不超过 5 MB。
+          </p>
+        </div>
+      </div>
+      <div style="font-weight: 600; margin-bottom: 8px">游戏介绍</div>
+      <el-input
+        v-model="introText"
+        type="textarea"
+        :rows="8"
+        maxlength="2000"
+        show-word-limit
+        placeholder="显示在官网「在线游戏」页，默认显示两行，点「更多」看全文。可以换行。"
+      />
+    </template>
+    <template #footer>
+      <el-button @click="showcase = null">关闭</el-button>
+      <el-button type="primary" :loading="introBusy" @click="saveIntro">保存介绍</el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <style scoped>

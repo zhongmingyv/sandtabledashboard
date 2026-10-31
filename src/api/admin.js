@@ -35,6 +35,11 @@ export const api = {
   // 网页版：浏览器里玩这条战役要不要先登录（过审的战役都会出现在官网「在线游戏」页）
   setCampaignWebLoginRequired: (id, loginRequired) =>
     http.put(`/admin/campaigns/${id}/web-login-required`, { loginRequired }),
+  // 封面：官网「在线游戏」页每个游戏左边的图。请求体就是图片字节
+  uploadCampaignCover: (id, file) => http.putBinary(`/admin/campaigns/${id}/cover`, file),
+  deleteCampaignCover: (id) => http.del(`/admin/campaigns/${id}/cover`),
+  // 游戏介绍：官网「在线游戏」页显示
+  saveCampaignIntro: (id, intro) => http.put(`/admin/campaigns/${id}/intro`, { intro }),
 
   // 房间（没结束的对局桌）
   matches: (params) => http.get('/admin/matches', params),

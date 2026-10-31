@@ -510,6 +510,13 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
     })
   }
 
+  // 战役的封面与介绍
+  if (m === 'PUT' && /^admin\/campaigns\/[^/]+\/cover$/.test(p)) {
+    return ok({ coverUrl: 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22160%22 height=%2290%22%3E%3Crect width=%22160%22 height=%2290%22 fill=%22%232a5286%22/%3E%3C/svg%3E' })
+  }
+  if (m === 'DELETE' && /^admin\/campaigns\/[^/]+\/cover$/.test(p)) return ok({ ok: true })
+  if (m === 'PUT' && /^admin\/campaigns\/[^/]+\/intro$/.test(p)) return ok({ ok: true, intro: data?.intro || '' })
+
   // 插件版本（只读演示：上传 / 撤下要真服务器）
   if (m === 'GET' && p === 'admin/plugin-releases') {
     return ok({
