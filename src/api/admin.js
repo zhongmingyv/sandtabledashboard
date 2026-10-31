@@ -39,7 +39,9 @@ export const api = {
   uploadCampaignCover: (id, file) => http.putBinary(`/admin/campaigns/${id}/cover`, file),
   deleteCampaignCover: (id) => http.del(`/admin/campaigns/${id}/cover`),
   // 游戏介绍：官网「在线游戏」页显示
-  saveCampaignIntro: (id, intro) => http.put(`/admin/campaigns/${id}/intro`, { intro }),
+  saveCampaignIntro: (id, intro, translations) => http.put(`/admin/campaigns/${id}/intro`, { intro, translations }),
+  // AI 翻译：简体翻成繁体、英文、日文，结果给页面看过再保存
+  translateSiteText: (name, text) => http.postSlow('/admin/translate', { name, text }, 110000),
 
   // 房间（没结束的对局桌）
   matches: (params) => http.get('/admin/matches', params),
@@ -114,7 +116,8 @@ export const api = {
   activatePluginRelease: (id, version) => http.post(`/admin/plugin-releases/${id}/${version}/activate`),
   withdrawPluginRelease: (id, version) => http.del(`/admin/plugin-releases/${id}/${version}`),
   // 插件的名字与说明：官网插件市场显示，按插件存、不跟版本走
-  savePluginListing: (id, name, description) => http.put(`/admin/plugin-releases/${id}/description`, { name, description }),
+  savePluginListing: (id, name, description, translations) =>
+    http.put(`/admin/plugin-releases/${id}/description`, { name, description, translations }),
 
   // 临时文件：随手发给别人的文件，不进任何版本流程、不影响客户端查新。
   // 每个文件一条不用登录的链接 link（/d/{id}，相对服务器地址）；expiresAt 空 = 永久，到点链接失效、文件随后由服务器删掉

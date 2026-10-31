@@ -8,6 +8,7 @@ import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { api } from '../api/admin'
 import { API_BASE } from '../config'
+import SiteTextEditor from '../components/SiteTextEditor.vue'
 import { fmtBytes, fmtDate } from '../utils/format'
 
 const ROOT = '/admin/plugin-releases'
@@ -17,8 +18,7 @@ const rows = ref([])
 const listings = ref({}) // 编号 → { name, description }；name 空 = 用包里的
 // 正在编辑的插件；null = 没开对话框
 const editing = ref(null)
-const editName = ref('')
-const editText = ref('')
+const editText = ref(null) // 四种语言的名字与说明，给 SiteTextEditor 编辑
 const editBusy = ref(false)
 const uploading = ref(false)
 const progress = ref(0)
@@ -96,15 +96,18 @@ async function upload(e) {
 }
 
 function openEdit(group) {
-  editName.value = listings.value[group.pluginId]?.name || group.packageName
-  editText.value = group.description
+  const listing = listings.value[group.pluginId] || {}
+  const t = listing.translations || {}
+  const lang = (k) => ({ name: t[k]?.name || '', text: t[k]?.text || '' })
+  editText.value = { zh: { name: listing.name || group.packageName, text: group.description }, cht: lang('cht'), en: lang('en'), ja: lang('ja') }
   editing.value = group
 }
 
 async function saveDescription() {
   editBusy.value = true
   try {
-    await api.savePluginListing(editing.value.pluginId, editName.value, editText.value)
+    const { zh, cht, en, ja } = editText.value
+    await api.savePluginListing(editing.value.pluginId, zh.name, zh.text, { cht, en, ja })
     ElMessage.success('已保存，官网插件市场刷新后可见')
     editing.value = null
     load()
@@ -243,15 +246,15 @@ onMounted(load)
       </el-table>
     </el-card>
 
-    <el-dialog :model-value="!!editing" :title="`编辑插件：${editing?.pluginId || ''}`" width="560px" @close="editing = null">
-      <el-form label-position="top">
-        <el-form-item label="名字">
-          <el-input v-model="editName" maxlength="60" show-word-limit :placeholder="`留空 = 用包里的名字：${editing?.packageName || ''}`" />
-        </el-form-item>
-        <el-form-item label="说明">
-          <el-input v-model="editText" type="textarea" :rows="8" maxlength="2000" show-word-limit placeholder="显示在官网插件市场，可以换行" />
-        </el-form-item>
-      </el-form>
+    <el-dialog :model-value="!!editing" :title="`编辑插件：${editing?.pluginId || ''}`" width="640px" @close="editing = null">
+      <SiteTextEditor
+        v-if="editing"
+        v-model="editText"
+        name-label="名字"
+        text-label="说明"
+        :name-placeholder="`留空 = 用包里的名字：${editing.packageName}`"
+        text-placeholder="显示在官网插件市场，可以换行"
+      />
       <p style="margin: 0; color: #909399; font-size: 12px">只改官网和后台显示的名字；Maker 里显示的仍是插件包里的名字，编号不变。</p>
       <template #footer>
         <el-button @click="editing = null">取消</el-button>

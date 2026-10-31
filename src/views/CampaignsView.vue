@@ -3,6 +3,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { api } from '../api/admin'
+import SiteTextEditor from '../components/SiteTextEditor.vue'
 import { fmtBytes, fmtDate } from '../utils/format'
 import { PAGE_SIZE } from '../config'
 
@@ -98,12 +99,14 @@ async function setWebLogin(row, on) {
 // 官网「在线游戏」页的封面与介绍：都在一个窗口里改。封面选好就传，介绍点保存才写
 const coverInput = ref(null)
 const showcase = ref(null) // 正在编辑的那一行；null = 没开窗口
-const introText = ref('')
+const showcaseText = ref(null) // 四种语言的标题与介绍，给 SiteTextEditor 编辑
 const coverBusy = ref(false)
 const introBusy = ref(false)
 
 function openShowcase(row) {
-  introText.value = row.intro || ''
+  const t = row.translations || {}
+  const lang = (k) => ({ name: t[k]?.name || '', text: t[k]?.text || '' })
+  showcaseText.value = { zh: { name: t.zh?.name || '', text: row.intro || '' }, cht: lang('cht'), en: lang('en'), ja: lang('ja') }
   showcase.value = row
 }
 
@@ -116,9 +119,11 @@ async function saveIntro() {
   const row = showcase.value
   introBusy.value = true
   try {
-    const res = await api.saveCampaignIntro(row.id, introText.value)
+    const { zh, cht, en, ja } = showcaseText.value
+    const res = await api.saveCampaignIntro(row.id, zh.text, { zh: { name: zh.name }, cht, en, ja })
     row.intro = res.intro
-    ElMessage.success('介绍已保存，官网刷新后可见')
+    row.translations = res.translations
+    ElMessage.success('已保存，官网刷新后可见')
     showcase.value = null
   } catch (err) {
     ElMessage.error(err?.response?.data?.message || err?.response?.data?.error || '保存失败')
@@ -282,7 +287,7 @@ onMounted(load)
     </div>
   </div>
 
-  <el-dialog :model-value="!!showcase" :title="`官网展示：${showcase?.title || ''}`" width="560px" @close="showcase = null">
+  <el-dialog :model-value="!!showcase" :title="`官网展示：${showcase?.title || ''}`" width="640px" @close="showcase = null">
     <template v-if="showcase">
       <div style="font-weight: 600; margin-bottom: 8px">封面</div>
       <div style="display: flex; gap: 16px; align-items: flex-start; margin-bottom: 20px">
@@ -308,19 +313,18 @@ onMounted(load)
           </p>
         </div>
       </div>
-      <div style="font-weight: 600; margin-bottom: 8px">游戏介绍</div>
-      <el-input
-        v-model="introText"
-        type="textarea"
-        :rows="8"
-        maxlength="2000"
-        show-word-limit
-        placeholder="显示在官网「在线游戏」页，默认显示两行，点「更多」看全文。可以换行。"
+      <div style="font-weight: 600; margin-bottom: 8px">标题和介绍</div>
+      <SiteTextEditor
+        v-model="showcaseText"
+        name-label="标题（留空 = 用原标题）"
+        text-label="游戏介绍"
+        :name-placeholder="showcase.title"
+        text-placeholder="显示在官网「在线游戏」页，默认显示两行，点「更多」看全文。可以换行。"
       />
     </template>
     <template #footer>
       <el-button @click="showcase = null">关闭</el-button>
-      <el-button type="primary" :loading="introBusy" @click="saveIntro">保存介绍</el-button>
+      <el-button type="primary" :loading="introBusy" @click="saveIntro">保存文字</el-button>
     </template>
   </el-dialog>
 </template>

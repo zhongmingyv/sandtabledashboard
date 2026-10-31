@@ -21,7 +21,7 @@ function handleUnauthorized() {
 }
 
 // 统一请求入口：USE_MOCK 时走内存 mock，否则真 axios。两条路径返回/抛出形状一致。
-export async function request(method, url, { params, data } = {}) {
+export async function request(method, url, { params, data, timeout } = {}) {
   try {
     if (USE_MOCK) {
       // mock 也校验 token（login 除外），模拟鉴权
@@ -31,7 +31,7 @@ export async function request(method, url, { params, data } = {}) {
       }
       return await mockRequest(method, url, { params, data })
     }
-    const resp = await instance.request({ method, url, params, data })
+    const resp = await instance.request({ method, url, params, data, timeout })
     return resp.data
   } catch (err) {
     const status = err?.response?.status
@@ -72,6 +72,8 @@ export async function requestBinary(url, blob, params, onProgress) {
 export const http = {
   get: (url, params) => request('GET', url, { params }),
   post: (url, data, params) => request('POST', url, { data, params }),
+  // 要等很久的请求（AI 翻译）：默认 15 秒超时不够
+  postSlow: (url, data, timeout) => request('POST', url, { data, timeout }),
   put: (url, data, params) => request('PUT', url, { data, params }),
   del: (url, params) => request('DELETE', url, { params }),
   putBinary: (url, blob, params, onProgress) => requestBinary(url, blob, params, onProgress),
