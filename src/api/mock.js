@@ -513,7 +513,7 @@ export function mockRequest(method, url, { params = {}, data = {} } = {}) {
   // 插件版本（只读演示：上传 / 撤下要真服务器）
   if (m === 'GET' && p === 'admin/plugin-releases') {
     return ok({
-      descriptions: { studio: '用复盘记录做战役讲解视频，导出 MP4 + SRT。' },
+      listings: { studio: { name: '', description: '用复盘记录做战役讲解视频，导出 MP4 + SRT。' } },
       items: [
         { pluginId: 'studio', version: '1.8.0', name: '摄影棚', api: 5, size: 86822214, sha256: 'ef'.repeat(32), notes: '修了出片', createdAt: '2026-10-31T08:00:00Z', downloadCount: 0, archived: false, pending: true, url: 'https://files.example.invalid/plugins/studio/v1.8.0-efefefef.zip' },
         { pluginId: 'studio', version: '1.7.0', name: '摄影棚', api: 4, size: 86800000, sha256: 'ab'.repeat(32), notes: '', createdAt: '2026-10-30T08:00:00Z', downloadCount: 3, archived: false, pending: false, url: 'https://files.example.invalid/plugins/studio/v1.7.0-abababab.zip' },

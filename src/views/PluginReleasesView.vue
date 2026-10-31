@@ -2,7 +2,8 @@
 // 后台发版的 Maker 插件：把插件的 build-plugin.ps1 打出来的 zip 传上来，先「待生效」，点「生效」才对 Maker 可见。
 // 编号、版本、接口版本都从 zip 里的 plugin.json 读，不用填。没有审核，也没有强制升级：要不要更新由用户在 Maker 里决定。
 // 插件的 plugin.json 把 updateUrl 填成这里复制的「更新地址」，Maker 才查得到新版。
-// 「说明」显示在官网插件市场：第一次上传取 plugin.json 的 description，之后以这里编辑的为准，发新版不覆盖。
+// 「名字」「说明」显示在官网插件市场：说明第一次上传时取 plugin.json 的 description，之后都以这里编辑的为准，发新版不覆盖；
+// 名字留空 = 用包里的 name。Maker 里显示的仍是包里的 name。
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { api } from '../api/admin'
@@ -13,9 +14,10 @@ const ROOT = '/admin/plugin-releases'
 
 const loading = ref(false)
 const rows = ref([])
-const descriptions = ref({})
-// 正在编辑说明的插件；null = 没开对话框
+const listings = ref({}) // 编号 → { name, description }；name 空 = 用包里的
+// 正在编辑的插件；null = 没开对话框
 const editing = ref(null)
+const editName = ref('')
 const editText = ref('')
 const editBusy = ref(false)
 const uploading = ref(false)
@@ -35,7 +37,9 @@ const groups = computed(() => {
   }
   return [...map].map(([pluginId, items]) => ({
     pluginId,
-    name: items[0].name,
+    packageName: items[0].name,
+    name: listings.value[pluginId]?.name || items[0].name,
+    description: listings.value[pluginId]?.description || '',
     items,
     latest: items.find((r) => !r.archived && !r.pending) || null,
   }))
@@ -48,7 +52,7 @@ async function load() {
   try {
     const res = await api.pluginReleases()
     rows.value = res.items
-    descriptions.value = res.descriptions || {}
+    listings.value = res.listings || {}
   } finally {
     loading.value = false
   }
@@ -92,15 +96,16 @@ async function upload(e) {
 }
 
 function openEdit(group) {
-  editText.value = descriptions.value[group.pluginId] || ''
+  editName.value = listings.value[group.pluginId]?.name || group.packageName
+  editText.value = group.description
   editing.value = group
 }
 
 async function saveDescription() {
   editBusy.value = true
   try {
-    await api.savePluginDescription(editing.value.pluginId, editText.value)
-    ElMessage.success('说明已保存，官网插件市场刷新后可见')
+    await api.savePluginListing(editing.value.pluginId, editName.value, editText.value)
+    ElMessage.success('已保存，官网插件市场刷新后可见')
     editing.value = null
     load()
   } catch (err) {
@@ -202,10 +207,10 @@ onMounted(load)
       </template>
       <div style="display: flex; gap: 12px; align-items: flex-start; margin-bottom: 12px">
         <div style="flex: 1; min-width: 0; white-space: pre-line; overflow-wrap: anywhere">
-          <span v-if="descriptions[g.pluginId]">{{ descriptions[g.pluginId] }}</span>
+          <span v-if="g.description">{{ g.description }}</span>
           <span v-else style="color: #909399">还没有说明，官网插件市场会空着这一段</span>
         </div>
-        <el-button link type="primary" @click="openEdit(g)">编辑说明</el-button>
+        <el-button link type="primary" @click="openEdit(g)">编辑名字和说明</el-button>
       </div>
       <el-table :data="g.items" border size="small" :row-style="({ row }) => (row.archived ? { color: '#a8abb2' } : {})">
         <el-table-column label="版本" width="150">
@@ -238,8 +243,16 @@ onMounted(load)
       </el-table>
     </el-card>
 
-    <el-dialog :model-value="!!editing" :title="`编辑说明：${editing?.name || ''}`" width="560px" @close="editing = null">
-      <el-input v-model="editText" type="textarea" :rows="8" maxlength="2000" show-word-limit placeholder="显示在官网插件市场，可以换行" />
+    <el-dialog :model-value="!!editing" :title="`编辑插件：${editing?.pluginId || ''}`" width="560px" @close="editing = null">
+      <el-form label-position="top">
+        <el-form-item label="名字">
+          <el-input v-model="editName" maxlength="60" show-word-limit :placeholder="`留空 = 用包里的名字：${editing?.packageName || ''}`" />
+        </el-form-item>
+        <el-form-item label="说明">
+          <el-input v-model="editText" type="textarea" :rows="8" maxlength="2000" show-word-limit placeholder="显示在官网插件市场，可以换行" />
+        </el-form-item>
+      </el-form>
+      <p style="margin: 0; color: #909399; font-size: 12px">只改官网和后台显示的名字；Maker 里显示的仍是插件包里的名字，编号不变。</p>
       <template #footer>
         <el-button @click="editing = null">取消</el-button>
         <el-button type="primary" :loading="editBusy" @click="saveDescription">保存</el-button>
